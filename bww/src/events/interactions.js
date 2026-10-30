@@ -25,6 +25,19 @@ function canCloseTicket(interaction, config) {
 
 module.exports = async (interaction, client) => {
   try {
+  if (interaction.isAutocomplete()) {
+    const focused = interaction.options.getFocused(true);
+    if (focused.name === 'farbe') {
+      const palette = [['Discord-Blau','#5865F2'],['Rot','#ED4245'],['Grün','#57F287'],['Gelb','#FEE75C'],['Lila','#9B59B6'],['Orange','#E67E22'],['Türkis','#1ABC9C'],['Pink','#EB459E'],['Weiß','#FFFFFF'],['Schwarz','#23272A'],['Dunkelgrau','#2F3136']];
+      const raw = String(focused.value || '').trim();
+      const query = raw.toLowerCase();
+      const matches = palette.filter(([name,hex]) => name.toLowerCase().includes(query) || hex.toLowerCase().includes(query));
+      const cleanHex = raw.replace(/^#/, '');
+      if (/^[0-9a-fA-F]{6}$/.test(cleanHex)) matches.unshift(['Benutzerdefiniert', `#${cleanHex.toUpperCase()}`]);
+      return interaction.respond(matches.slice(0,25).map(([name,value]) => ({ name: `${name} (${value})`, value })));
+    }
+    return interaction.respond([]);
+  }
   const config = await getGuildSettings(interaction.guildId);
   if ((interaction.isButton() && (interaction.customId.startsWith('bww_embed_btn_') || interaction.customId.startsWith('bww_embed_'))) || (interaction.isAnySelectMenu?.() && interaction.customId.startsWith('bww_embed_select_'))) {
     const resolved = await findEmbedInteraction(interaction.guildId, interaction.customId);
@@ -257,10 +270,50 @@ module.exports = async (interaction, client) => {
     return interaction.reply({ content: `✅ ${member.user.tag} wurde die Rolle ${role} entfernt.`, ...EPHEMERAL });
   }
   if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
+  if (command === 'nachricht-wiederholen') {
+    if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) return interaction.reply({ content: '❌ Nur Administratoren dürfen wiederkehrende Nachrichten einrichten.', ...EPHEMERAL });
+    const text = interaction.options.getString('text', true).slice(0, 4000);
+    const amount = interaction.options.getInteger('intervall', true);
+    const unit = interaction.options.getString('einheit', true);
+    const multipliers = { minuten: 60_000, stunden: 3_600_000, tage: 86_400_000 };
+    const intervalMs = amount * multipliers[unit];
+    if (!multipliers[unit] || intervalMs < 60_000 || intervalMs > 365 * 86_400_000) return interaction.reply({ content: '❌ Ungültiges Intervall.', ...EPHEMERAL });
+    const channel = interaction.options.getChannel('kanal') || interaction.channel;
+    if (!channel?.isTextBased()) return interaction.reply({ content: '❌ Bitte einen Textkanal auswählen.', ...EPHEMERAL });
+    const attachment = interaction.options.getAttachment('bild');
+    const color = interaction.options.getString('farbe') || '#5865F2';
+    const id = Math.random().toString(36).slice(2, 8).toUpperCase();
+    const schedule = { id, active: true, channelId: channel.id, text, image: attachment?.url || '', color, intervalMs, intervalLabel: `${amount} ${unit}`, nextRunAt: new Date(Date.now() + intervalMs).toISOString(), createdAt: new Date().toISOString(), createdBy: interaction.user.id };
+    config.recurringMessages = [...(config.recurringMessages || []), schedule];
+    try {
+      await saveGuildSettings(interaction.guildId, config, interaction.user.id);
+      const container = embedV2({ description: text, image: schedule.image, color });
+      await channel.send({ components: [container], flags: V2, allowedMentions: { parse: [] } });
+      return interaction.reply({ content: `✅ Wiederholung eingerichtet (ID: \`${id}\`). Erste Nachricht wurde gesendet. Nächste Sendung in ${amount} ${unit}. Stoppen mit \`/wiederholung-stoppen id:${id}\`.`, ...EPHEMERAL });
+    } catch (err) { return interaction.reply({ content: `❌ Wiederholung konnte nicht eingerichtet werden: ${err.message}`, ...EPHEMERAL }); }
+  }
+  if (command === 'wiederholung-stoppen') {
+    if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) return interaction.reply({ content: '❌ Nur Administratoren dürfen Wiederholungen stoppen.', ...EPHEMERAL });
+    const id = interaction.options.getString('id', true).trim().toUpperCase();
+    const item = (config.recurringMessages || []).find(entry => entry.id === id && entry.active);
+    if (!item) return interaction.reply({ content: '❌ Keine aktive Wiederholung mit dieser ID gefunden.', ...EPHEMERAL });
+    item.active = false; item.stoppedAt = new Date().toISOString();
+    await saveGuildSettings(interaction.guildId, config, interaction.user.id);
+    return interaction.reply({ content: `🛑 Wiederholung \`${id}\` wurde deaktiviert.`, ...EPHEMERAL });
+  }
+  if (command === 'wiederholung-liste') {
+    if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) return interaction.reply({ content: '❌ Nur Administratoren dürfen Wiederholungen anzeigen.', ...EPHEMERAL });
+    const active = (config.recurringMessages || []).filter(entry => entry.active);
+    if (!active.length) return interaction.reply({ content: '📭 Es gibt keine aktiven Wiederholungen.', ...EPHEMERAL });
+    const lines = active.map(entry => `• ID \`${entry.id}\` – <#${entry.channelId}> – alle ${entry.intervalLabel}`).join('\n');
+    return interaction.reply({ content: `**Aktive Wiederholungen**\n${lines}`, ...EPHEMERAL });
+  }
+  if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
   if (command === 'embed') {
     const text = interaction.options.getString('text', true);
     const title = interaction.options.getString('titel') || '';
-    const image = interaction.options.getString('bild') || '';
+    const attachment = interaction.options.getAttachment('bild');
+    const image = attachment?.url || interaction.options.getString('bild_url') || '';
     const thumbnail = interaction.options.getString('thumbnail') || '';
     const color = interaction.options.getString('farbe') || '';
     const footer = interaction.options.getString('footer') || '';
@@ -298,7 +351,7 @@ module.exports = async (interaction, client) => {
   }
   if (command === 'setup') {
     const container = new ContainerBuilder().setAccentColor(0x2F3136);
-    container.addTextDisplayComponents(new TextDisplayBuilder().setContent('## BWW Setup\n`/setup-welcome` [channel] [text] [title?] → Welcome\n`/setup-verify` → Verify\n`/setup-ticket` [kategorie] [rolle] → Ticket\n`/setup-status` [channel] → Status-Embed\n`/setup-permission` → Command-Berechtigungen\n`/restart` → Bot neu starten\n`/dashboard-code` → Web-Dashboard-Zugang erzeugen\n`/wartung` → Wartung an/aus\n`/panel-create` → Custom Panel (10 Buttons) speichern+senden\n`/panel-add-button` → Button hinzufügen\n`/panel-send`/`/panel-delete`/`/panel-list` → Panels verwalten\n`/kick`, `/ban`, `/unban`, `/timeout` → Moderation\n`/giverole`, `/removerole` → Rollen'));
+    container.addTextDisplayComponents(new TextDisplayBuilder().setContent('## BWW Setup\n`/setup-welcome` [channel] [text] [title?] → Welcome\n`/setup-verify` → Verify\n`/setup-ticket` [kategorie] [rolle] → Ticket\n`/setup-status` [channel] → Status-Embed\n`/setup-permission` → Command-Berechtigungen\n`/restart` → Bot neu starten\n`/dashboard-code` → Web-Dashboard-Zugang erzeugen\n`/wartung` → Wartung an/aus\n`/panel-create` → Custom Panel (10 Buttons) speichern+senden\n`/panel-add-button` → Button hinzufügen\n`/panel-send`/`/panel-delete`/`/panel-list` → Panels verwalten\n`/nachricht-wiederholen` → Nachricht regelmäßig senden\n`/wiederholung-stoppen`/`/wiederholung-liste` → Wiederholungen verwalten\n`/embed` → Embed mit HEX-Farbe und Bild-Upload\n`/kick`, `/ban`, `/unban`, `/timeout` → Moderation\n`/giverole`, `/removerole` → Rollen'));
     container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true));
     container.addTextDisplayComponents(new TextDisplayBuilder().setContent('**Welcome-Platzhalter:**\n`{user}` → Ping\n`{username}` → Name\n`{displayname}` → Server-Nickname\n`{server}` → Servername\n`{id}` → User-ID\n`{count}` → Mitgliederzahl\n\nDer Avatar des Users erscheint automatisch oben rechts.'));
     return interaction.reply({ components: [container], flags: EPHEMERAL_V2 });
