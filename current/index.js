@@ -279,18 +279,6 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
       }
     }
     if (oldState.id !== client.user.id) return;
-
-    // Discord kann einen verspäteten Voice-State-Event liefern, obwohl die
-    // bestehende VoiceConnection bereits wieder stabil im Ziel-Channel ist.
-    // In diesem Fall keinesfalls einen Leave/Kick melden oder neu verbinden.
-    if (
-      connection &&
-      connection.state.status === VoiceConnectionStatus.Ready &&
-      connection.joinConfig.channelId === VOICE_CHANNEL_ID
-    ) {
-      return;
-    }
-
     if (oldState.channelId && !newState.channelId) {
       const channel = await client.channels.fetch(oldState.channelId).catch(() => null);
       if (!channel) {
@@ -298,11 +286,11 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
       } else {
         const who = await findKickExecutor(oldState.guild);
         await reportLeave(who
-          ? `Voice-Channel verlassen: #${channel.name ?? oldState.channelId} (Aktion von ${who})`
-          : `Voice-State meldet Verlassen von #${channel.name ?? oldState.channelId}`);
+          ? `Gekickt aus #${channel.name ?? oldState.channelId} von ${who}`
+          : `Gekickt/entfernt aus #${channel.name ?? oldState.channelId} (durch Mod oder manuell)`);
       }
     } else if (oldState.channelId && newState.channelId && oldState.channelId !== newState.channelId) {
-      console.warn(`[VOICE] Wurde nach #${newState.channel?.name ?? newState.channelId} verschoben – prüfe Ziel-Channel.`);
+      console.warn(`[VOICE] Wurde nach #${newState.channel?.name ?? newState.channelId} verschoben – hole zurück in Ziel-Channel.`);
       joinTargetChannel().catch(console.error);
     }
   } catch (e) {
@@ -326,7 +314,7 @@ function reconnectDelay() {
   return Math.min(RECONNECT_BASE_MS * 2 ** reconnectAttempts, RECONNECT_MAX_MS);
 }
 
-async function performJoinTargetChannel() {
+async function joinTargetChannel() {
   if (stopping) return;
 
   try {
@@ -341,22 +329,13 @@ async function performJoinTargetChannel() {
       throw new Error('Der Bot kann dem Voice-Channel nicht beitreten. Prüfe Connect/Speak-Rechte.');
     }
 
-    // Bereits im Ziel-Channel: eine laufende Verbindung weiterverwenden.
-    if (connection && connection.joinConfig.channelId === channel.id) {
-      if (connection.state.status === VoiceConnectionStatus.Ready) return;
-      if (
-        connection.state.status === VoiceConnectionStatus.Signalling ||
-        connection.state.status === VoiceConnectionStatus.Connecting ||
-        connection.state.status === VoiceConnectionStatus.Disconnected
-      ) {
-        const existing = connection;
-        await entersState(existing, VoiceConnectionStatus.Ready, 30_000);
-        if (connection === existing) {
-          reconnectAttempts = 0;
-          notReadySince = null;
-          return;
-        }
-      }
+    // Bereits verbunden und im richtigen Channel?
+    if (
+      connection &&
+      connection.state.status === VoiceConnectionStatus.Ready &&
+      connection.joinConfig.channelId === channel.id
+    ) {
+      return;
     }
 
     if (connection) {
@@ -373,31 +352,6 @@ async function performJoinTargetChannel() {
     });
 
     const current = connection;
-
-    // Diagnose: zeigt, an welcher Stelle der Voice-Handshake abbricht.
-    // Keine Tokens oder vollständigen Session-IDs protokollieren.
-    current.on('stateChange', (oldState, newState) => {
-      const oldStatus = oldState?.status ?? 'unbekannt';
-      const newStatus = newState?.status ?? 'unbekannt';
-      console.log(`[VOICE STATE] ${oldStatus} -> ${newStatus}`);
-
-      if (newStatus === VoiceConnectionStatus.Disconnected) {
-        const details = newState;
-        console.warn(
-          '[VOICE DISCONNECT DETAILS]',
-          JSON.stringify({
-            reason: details?.reason ?? null,
-            closeCode: details?.closeCode ?? null,
-            ping: current.ping ?? null,
-            rejoinAttempts: current.rejoinAttempts ?? null
-          })
-        );
-      }
-    });
-
-    current.on('debug', (message) => {
-      console.log('[VOICE DEBUG]', String(message).slice(0, 1500));
-    });
 
     current.on('error', (error) => {
       console.error('[VOICE ERROR]', error?.message ?? error);
@@ -420,24 +374,12 @@ async function performJoinTargetChannel() {
       }
       console.warn('[VOICE] Reconnect wird versucht.');
 
-      // Nicht Promise.race mit mehreren entersState-Aufrufen verwenden:
-      // Der jeweils andere entersState-Aufruf kann beim Zustandswechsel mit
-      // "The operation was aborted" ablehnen, obwohl die Verbindung gerade
-      // korrekt in den nächsten Zustand gewechselt ist.
       try {
-        await entersState(current, VoiceConnectionStatus.Ready, 20_000);
-        if (connection === current) {
-          reconnectAttempts = 0;
-          notReadySince = null;
-          console.log('[VOICE] Verbindung nach Disconnect automatisch wiederhergestellt.');
-        }
-      } catch (recoveryError) {
-        console.warn(
-          '[VOICE] Automatische Wiederherstellung fehlgeschlagen:',
-          recoveryError?.message ?? recoveryError,
-          '| Status:',
-          current.state.status
-        );
+        await Promise.race([
+          entersState(current, VoiceConnectionStatus.Signalling, 5_000),
+          entersState(current, VoiceConnectionStatus.Connecting, 5_000)
+        ]);
+      } catch {
         try { current.destroy(); } catch {}
         if (connection === current) connection = null;
         scheduleReconnect();
@@ -459,20 +401,6 @@ async function performJoinTargetChannel() {
     connection = null;
     scheduleReconnect();
   }
-}
-
-let joinInProgress = null;
-
-// Alle Auslöser (Voice-Events, Retry-Timer und Health-Check) teilen sich
-// denselben Join-Vorgang. Parallele Versuche dürfen die Verbindung nicht
-// gegenseitig zerstören und dadurch Abort-Fehler erzeugen.
-function joinTargetChannel() {
-  if (stopping) return Promise.resolve();
-  if (joinInProgress) return joinInProgress;
-  joinInProgress = performJoinTargetChannel().finally(() => {
-    joinInProgress = null;
-  });
-  return joinInProgress;
 }
 
 function scheduleReconnect() {
