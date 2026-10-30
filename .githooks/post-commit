@@ -1,0 +1,13 @@
+#!/bin/bash
+msg="$(git log -1 --pretty=%s)"
+bot="$(printf '%s' "$msg" | grep -oiE '^(bww|current|twitch-chatbot)' | head -n1 | tr '[:upper:]' '[:lower:]')"
+echo "[GIT-SYNC] Commit: '${msg}' -> Bot: '${bot}'"
+
+# Katabump-Sync ausloesen (Push ausloest KataBump-Deploy)
+git push origin master >/dev/null 2>&1
+if [ $? -ne 0 ]; then
+  echo "[GIT-SYNC] Push fehlgeschlagen - Katabump-Sync uebersprungen."
+fi
+
+# Restart nur dieser Bot (Loader Self-Sync restartet nur geaenderten Bot)
+echo "[GIT-SYNC] Loader Self-Sync: nur Bot '${bot}' restartet, falls sich Dateien geaendert haben."
