@@ -14,12 +14,17 @@ async function processRecurringMessages(client) {
       try {
         const settings = await getGuildSettings(guild.id);
         const entries = Array.isArray(settings.recurringMessages) ? settings.recurringMessages : [];
-        let changed = false;
-        for (const entry of entries) {
-          if (!entry.active || !entry.nextRunAt || new Date(entry.nextRunAt).getTime() > now) continue;
+        const due = entries.filter(entry => entry.active && entry.nextRunAt && new Date(entry.nextRunAt).getTime() <= now);
+        if (!due.length) continue;
+
+        // Persist the next deadlines before sending so a restart cannot resend the same due occurrence.
+        for (const entry of due) {
           entry.nextRunAt = new Date(now + Math.max(60_000, Number(entry.intervalMs) || 60_000)).toISOString();
           entry.lastAttemptAt = new Date(now).toISOString();
-          changed = true;
+        }
+        await saveGuildSettings(guild.id, settings);
+
+        for (const entry of due) {
           try {
             const channel = await client.channels.fetch(entry.channelId).catch(() => null);
             if (!channel?.isTextBased()) throw new Error('Zielkanal nicht gefunden oder nicht textbasiert.');
@@ -32,7 +37,7 @@ async function processRecurringMessages(client) {
             console.error('[BWW] Wiederkehrende Nachricht fehlgeschlagen:', entry.id, entry.lastError);
           }
         }
-        if (changed) await saveGuildSettings(guild.id, settings);
+        await saveGuildSettings(guild.id, settings);
       } catch (error) {
         console.error('[BWW] Wiederholungs-Scheduler fehlgeschlagen:', guild.id, error.message);
       }
