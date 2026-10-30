@@ -1,4 +1,12 @@
-require("dotenv").config();
+const path = require("node:path");
+const envPath = path.resolve(__dirname, "../.env");
+const envResult = require("dotenv").config({ path: envPath });
+
+if (envResult.error && envResult.error.code !== "ENOENT") {
+  console.error("[TTV] .env konnte nicht geladen werden:", envResult.error.message);
+} else {
+  console.log(`[TTV] dotenv-Datei: ${envResult.error ? 'nicht gefunden' : envPath}`);
+}
 
 const tmi = require("tmi.js");
 const { commands } = require("./commands");
