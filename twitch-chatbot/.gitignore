@@ -1,8 +1,0 @@
-node_modules/
-.env
-npm-debug.log*
-twitch-chatbot-projekt.zip
-package-lock.json
-.superpowers/brainstorm/chat-overlay-visual/state/events
-.superpowers/brainstorm/chat-overlay-visual/state/server-info
-.superpowers/brainstorm/durable-view-1/state/server-info
