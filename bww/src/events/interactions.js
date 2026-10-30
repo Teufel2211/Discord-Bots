@@ -29,8 +29,11 @@ module.exports = async (interaction, client) => {
     const focused = interaction.options.getFocused(true);
     if (focused.name === 'farbe') {
       const palette = [['Discord-Blau','#5865F2'],['Rot','#ED4245'],['Grün','#57F287'],['Gelb','#FEE75C'],['Lila','#9B59B6'],['Orange','#E67E22'],['Türkis','#1ABC9C'],['Pink','#EB459E'],['Weiß','#FFFFFF'],['Schwarz','#23272A'],['Dunkelgrau','#2F3136']];
-      const query = String(focused.value || '').toLowerCase();
+      const raw = String(focused.value || '').trim();
+      const query = raw.toLowerCase();
       const matches = palette.filter(([name,hex]) => name.toLowerCase().includes(query) || hex.toLowerCase().includes(query));
+      const cleanHex = raw.replace(/^#/, '');
+      if (/^[0-9a-fA-F]{6}$/.test(cleanHex)) matches.unshift(['Benutzerdefiniert', `#${cleanHex.toUpperCase()}`]);
       return interaction.respond(matches.slice(0,25).map(([name,value]) => ({ name: `${name} (${value})`, value })));
     }
     return interaction.respond([]);
