@@ -395,12 +395,24 @@ async function performJoinTargetChannel() {
       }
       console.warn('[VOICE] Reconnect wird versucht.');
 
+      // Nicht Promise.race mit mehreren entersState-Aufrufen verwenden:
+      // Der jeweils andere entersState-Aufruf kann beim Zustandswechsel mit
+      // "The operation was aborted" ablehnen, obwohl die Verbindung gerade
+      // korrekt in den nächsten Zustand gewechselt ist.
       try {
-        await Promise.race([
-          entersState(current, VoiceConnectionStatus.Signalling, 5_000),
-          entersState(current, VoiceConnectionStatus.Connecting, 5_000)
-        ]);
-      } catch {
+        await entersState(current, VoiceConnectionStatus.Ready, 20_000);
+        if (connection === current) {
+          reconnectAttempts = 0;
+          notReadySince = null;
+          console.log('[VOICE] Verbindung nach Disconnect automatisch wiederhergestellt.');
+        }
+      } catch (recoveryError) {
+        console.warn(
+          '[VOICE] Automatische Wiederherstellung fehlgeschlagen:',
+          recoveryError?.message ?? recoveryError,
+          '| Status:',
+          current.state.status
+        );
         try { current.destroy(); } catch {}
         if (connection === current) connection = null;
         scheduleReconnect();
