@@ -374,6 +374,31 @@ async function performJoinTargetChannel() {
 
     const current = connection;
 
+    // Diagnose: zeigt, an welcher Stelle der Voice-Handshake abbricht.
+    // Keine Tokens oder vollständigen Session-IDs protokollieren.
+    current.on('stateChange', (oldState, newState) => {
+      const oldStatus = oldState?.status ?? 'unbekannt';
+      const newStatus = newState?.status ?? 'unbekannt';
+      console.log(`[VOICE STATE] ${oldStatus} -> ${newStatus}`);
+
+      if (newStatus === VoiceConnectionStatus.Disconnected) {
+        const details = newState;
+        console.warn(
+          '[VOICE DISCONNECT DETAILS]',
+          JSON.stringify({
+            reason: details?.reason ?? null,
+            closeCode: details?.closeCode ?? null,
+            ping: current.ping ?? null,
+            rejoinAttempts: current.rejoinAttempts ?? null
+          })
+        );
+      }
+    });
+
+    current.on('debug', (message) => {
+      console.log('[VOICE DEBUG]', String(message).slice(0, 1500));
+    });
+
     current.on('error', (error) => {
       console.error('[VOICE ERROR]', error?.message ?? error);
       reportLeave(`Voice-Fehler: ${error?.message ?? error}`).catch(() => {});
