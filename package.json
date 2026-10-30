@@ -1,10 +1,17 @@
 {
   "name": "discord-bots",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
-  "description": "Discord-Bot-Sammlung mit getrenntem KataBump-GitHub-Sync pro Bot",
+  "description": "Discord- und Twitch-Bots mit GitHub-Sync vor dem gemeinsamen Start",
   "scripts": {
     "start": "node bot-sync.js",
     "start:all": "node start-all.js"
+  },
+  "dependencies": {
+    "@discordjs/voice": "^0.18.0",
+    "@supabase/supabase-js": "2.118.0",
+    "discord.js": "^14.25.0",
+    "dotenv": "^16.6.1",
+    "tmi.js": "^1.8.5"
   }
 }
