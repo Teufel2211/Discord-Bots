@@ -279,6 +279,18 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
       }
     }
     if (oldState.id !== client.user.id) return;
+
+    // Discord kann einen verspäteten Voice-State-Event liefern, obwohl die
+    // bestehende VoiceConnection bereits wieder stabil im Ziel-Channel ist.
+    // In diesem Fall keinesfalls einen Leave/Kick melden oder neu verbinden.
+    if (
+      connection &&
+      connection.state.status === VoiceConnectionStatus.Ready &&
+      connection.joinConfig.channelId === VOICE_CHANNEL_ID
+    ) {
+      return;
+    }
+
     if (oldState.channelId && !newState.channelId) {
       const channel = await client.channels.fetch(oldState.channelId).catch(() => null);
       if (!channel) {
@@ -286,11 +298,11 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
       } else {
         const who = await findKickExecutor(oldState.guild);
         await reportLeave(who
-          ? `Gekickt aus #${channel.name ?? oldState.channelId} von ${who}`
-          : `Gekickt/entfernt aus #${channel.name ?? oldState.channelId} (durch Mod oder manuell)`);
+          ? `Voice-Channel verlassen: #${channel.name ?? oldState.channelId} (Aktion von ${who})`
+          : `Voice-State meldet Verlassen von #${channel.name ?? oldState.channelId}`);
       }
     } else if (oldState.channelId && newState.channelId && oldState.channelId !== newState.channelId) {
-      console.warn(`[VOICE] Wurde nach #${newState.channel?.name ?? newState.channelId} verschoben – hole zurück in Ziel-Channel.`);
+      console.warn(`[VOICE] Wurde nach #${newState.channel?.name ?? newState.channelId} verschoben – prüfe Ziel-Channel.`);
       joinTargetChannel().catch(console.error);
     }
   } catch (e) {
@@ -314,7 +326,7 @@ function reconnectDelay() {
   return Math.min(RECONNECT_BASE_MS * 2 ** reconnectAttempts, RECONNECT_MAX_MS);
 }
 
-async function joinTargetChannel() {
+async function performJoinTargetChannel() {
   if (stopping) return;
 
   try {
@@ -329,13 +341,22 @@ async function joinTargetChannel() {
       throw new Error('Der Bot kann dem Voice-Channel nicht beitreten. Prüfe Connect/Speak-Rechte.');
     }
 
-    // Bereits verbunden und im richtigen Channel?
-    if (
-      connection &&
-      connection.state.status === VoiceConnectionStatus.Ready &&
-      connection.joinConfig.channelId === channel.id
-    ) {
-      return;
+    // Bereits im Ziel-Channel: eine laufende Verbindung weiterverwenden.
+    if (connection && connection.joinConfig.channelId === channel.id) {
+      if (connection.state.status === VoiceConnectionStatus.Ready) return;
+      if (
+        connection.state.status === VoiceConnectionStatus.Signalling ||
+        connection.state.status === VoiceConnectionStatus.Connecting ||
+        connection.state.status === VoiceConnectionStatus.Disconnected
+      ) {
+        const existing = connection;
+        await entersState(existing, VoiceConnectionStatus.Ready, 30_000);
+        if (connection === existing) {
+          reconnectAttempts = 0;
+          notReadySince = null;
+          return;
+        }
+      }
     }
 
     if (connection) {
@@ -401,6 +422,20 @@ async function joinTargetChannel() {
     connection = null;
     scheduleReconnect();
   }
+}
+
+let joinInProgress = null;
+
+// Alle Auslöser (Voice-Events, Retry-Timer und Health-Check) teilen sich
+// denselben Join-Vorgang. Parallele Versuche dürfen die Verbindung nicht
+// gegenseitig zerstören und dadurch Abort-Fehler erzeugen.
+function joinTargetChannel() {
+  if (stopping) return Promise.resolve();
+  if (joinInProgress) return joinInProgress;
+  joinInProgress = performJoinTargetChannel().finally(() => {
+    joinInProgress = null;
+  });
+  return joinInProgress;
 }
 
 function scheduleReconnect() {
