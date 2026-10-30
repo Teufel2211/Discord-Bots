@@ -33,9 +33,9 @@ const commands = [
   { name: 'embed', description: 'Erstellt ein flexibles Components-V2-Embed.', options: [
     { name: 'text', description: 'Inhalt des Embeds', type: 3, required: true },
     { name: 'titel', description: 'Optionaler Titel', type: 3, required: false },
-    { name: 'bild', description: 'Optionale Bild-URL', type: 3, required: false },
+    { name: 'bild_url', description: 'Optionale Bild-URL (alternativ zum Upload)', type: 3, required: false },
     { name: 'thumbnail', description: 'Optionale Thumbnail-URL', type: 3, required: false },
-    { name: 'farbe', description: 'Hex-Farbe, z. B. 5865F2', type: 3, required: false },
+    { name: 'farbe', description: 'HEX-Farbcode oder Farbauswahl', type: 3, required: false, autocomplete: true },
     { name: 'footer', description: 'Optionaler Footer', type: 3, required: false },
     { name: 'bild', description: 'Bild direkt vom PC oder Handy hochladen', type: 11, required: false }
   ]},
