@@ -1,4 +1,12 @@
-require('dotenv').config();
+const path = require('node:path');
+const envPath = path.resolve(__dirname, '../../bww/.env');
+const envResult = require('dotenv').config({ path: envPath });
+
+if (envResult.error && envResult.error.code !== 'ENOENT') {
+  console.error('[BWW] .env konnte nicht geladen werden:', envResult.error.message);
+} else {
+  console.log(`[BWW] dotenv-Datei: ${envResult.error ? 'nicht gefunden' : envPath}`);
+}
 const { Client, GatewayIntentBits, Partials, REST, Routes, Events, MessageFlags } = require('discord.js');
 const { commands } = require('./commands');
 const welcome = require('./events/welcome');
