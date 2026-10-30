@@ -1,6 +1,6 @@
 const { ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, SeparatorSpacingSize, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits, MessageFlags } = require('discord.js');
 const { isAllowed } = require('../commands');
-const { getGuildSettings, saveGuildSettings, createDashboardCode, findEmbedInteraction } = require('../utils/database');
+const { getGuildSettings, saveGuildSettings } = require('../utils/database');
 const { embedV2, verifyComponents } = require('../utils/embeds');
 const { ticketContainer, createTicket, TICKET_REASONS } = require('../utils/tickets');
 const { loadGiveaways, saveGiveaways, giveawayContainer, startGiveaway, finalizeGiveaway, rerollGiveaway, updateGiveawayMessage } = require('../utils/giveaway');
@@ -39,21 +39,6 @@ module.exports = async (interaction, client) => {
     return interaction.respond([]);
   }
   const config = await getGuildSettings(interaction.guildId);
-  if ((interaction.isButton() && (interaction.customId.startsWith('bww_embed_btn_') || interaction.customId.startsWith('bww_embed_'))) || (interaction.isAnySelectMenu?.() && interaction.customId.startsWith('bww_embed_select_'))) {
-    const resolved = await findEmbedInteraction(interaction.guildId, interaction.customId);
-    if (resolved?.component) {
-      const responseText = String(resolved.component.response || '').trim();
-      const values = interaction.isAnySelectMenu?.() ? (interaction.values || []).join(', ') : '';
-      const text = (responseText || (interaction.isButton() ? '✅ Aktion ausgeführt.' : '✅ Auswahl gespeichert.'))
-        .replaceAll('{values}', values)
-        .replaceAll('{user}', `<@${interaction.user.id}>`)
-        .replaceAll('{username}', interaction.user.username)
-        .replaceAll('{server}', interaction.guild?.name || '');
-      const container = new ContainerBuilder().setAccentColor(0x2F3136);
-      container.addTextDisplayComponents(new TextDisplayBuilder().setContent(text.slice(0, 4000)));
-      return interaction.reply({ components: [container], flags: EPHEMERAL_V2, allowedMentions: { parse: [] } });
-    }
-  }
   if (interaction.isButton() && interaction.customId === 'bww_verify') {
     if (!config.verify.roleId) return interaction.reply({ content: '❌ Keine Verifizierungsrolle eingerichtet.', ...EPHEMERAL });
     const role = interaction.guild.roles.cache.get(config.verify.roleId) || await interaction.guild.roles.fetch(config.verify.roleId).catch(() => null);
@@ -131,16 +116,6 @@ module.exports = async (interaction, client) => {
       } catch (err) { return interaction.reply({ content: `❌ Status-Embed fehlgeschlagen: ${err.message}`, ...EPHEMERAL }); }
     }
     const name = interaction.options.getString('command', true); const role = interaction.options.getRole('role'); const allow = interaction.options.getBoolean('erlauben', true); config.permissions[name] ||= []; if (allow && !config.permissions[name].includes(role.id)) config.permissions[name].push(role.id); if (!allow) config.permissions[name] = config.permissions[name].filter(id => id !== role.id); await saveGuildSettings(interaction.guildId, config, interaction.user.id); return interaction.reply({ content: `✅ Rolle ${role} für /${name} ${allow ? 'erlaubt' : 'entfernt'}.`, ...EPHEMERAL });
-  }
-  if (command === 'dashboard-code') {
-    if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) return interaction.reply({ content: '❌ Nur Administratoren dürfen einen Dashboard-Zugangscode erzeugen.', ...EPHEMERAL });
-    try {
-      const result = await createDashboardCode(interaction.guildId, interaction.user.id, 60);
-      const expires = Math.floor(new Date(result.expiresAt).getTime() / 1000);
-      return interaction.reply({ content: '🔐 Dashboard-Code: `' + result.code + '`\nGültig bis <t:' + expires + ':F>.\nÖffne danach die BWW-Website und gib den Code ein.', ...EPHEMERAL });
-    } catch (err) {
-      return interaction.reply({ content: '❌ Dashboard-Code konnte nicht erstellt werden: ' + err.message, ...EPHEMERAL });
-    }
   }
   if (command === 'restart') {
     if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) return interaction.reply({ content: '❌ Nur Administratoren dürfen den Bot neu starten.', ...EPHEMERAL });
@@ -351,7 +326,7 @@ module.exports = async (interaction, client) => {
   }
   if (command === 'setup') {
     const container = new ContainerBuilder().setAccentColor(0x2F3136);
-    container.addTextDisplayComponents(new TextDisplayBuilder().setContent('## BWW Setup\n`/setup-welcome` [channel] [text] [title?] → Welcome\n`/setup-verify` → Verify\n`/setup-ticket` [kategorie] [rolle] → Ticket\n`/setup-status` [channel] → Status-Embed\n`/setup-permission` → Command-Berechtigungen\n`/restart` → Bot neu starten\n`/dashboard-code` → Web-Dashboard-Zugang erzeugen\n`/wartung` → Wartung an/aus\n`/panel-create` → Custom Panel (10 Buttons) speichern+senden\n`/panel-add-button` → Button hinzufügen\n`/panel-send`/`/panel-delete`/`/panel-list` → Panels verwalten\n`/kick`, `/ban`, `/unban`, `/timeout` → Moderation\n`/giverole`, `/removerole` → Rollen'));
+    container.addTextDisplayComponents(new TextDisplayBuilder().setContent('## BWW Setup\n`/setup-welcome` [channel] [text] [title?] → Welcome\n`/setup-verify` → Verify\n`/setup-ticket` [kategorie] [rolle] → Ticket\n`/setup-status` [channel] → Status-Embed\n`/setup-permission` → Command-Berechtigungen\n`/restart` → Bot neu starten\n`/wartung` → Wartung an/aus\n`/panel-create` → Custom Panel (10 Buttons) speichern+senden\n`/panel-add-button` → Button hinzufügen\n`/panel-send`/`/panel-delete`/`/panel-list` → Panels verwalten\n`/kick`, `/ban`, `/unban`, `/timeout` → Moderation\n`/giverole`, `/removerole` → Rollen'));
     container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true));
     container.addTextDisplayComponents(new TextDisplayBuilder().setContent('**Welcome-Platzhalter:**\n`{user}` → Ping\n`{username}` → Name\n`{displayname}` → Server-Nickname\n`{server}` → Servername\n`{id}` → User-ID\n`{count}` → Mitgliederzahl\n\nDer Avatar des Users erscheint automatisch oben rechts.'));
     return interaction.reply({ components: [container], flags: EPHEMERAL_V2 });
