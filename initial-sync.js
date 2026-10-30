@@ -1,10 +1,16 @@
 const { execSync } = require('child_process');
 const fs = require('fs');
 
-// [INITIAL-SYNC] Erst-Sync: alles wichtige von GitHub pullen
-execSync('git pull origin master', { stdio: 'inherit' });
+try {
+  execSync('git pull origin master', { stdio: 'inherit' });
+} catch {
+  console.log('[INITIAL-SYNC] Git-Pull fehlgeschlagen - ueberspringe.');
+}
 
-// Danach die Initial-Sync-Datei wieder selbst löschen
-fs.unlinkSync(__filename);
+try {
+  fs.unlinkSync(__filename);
+} catch {
+  // Datei bereits geloescht / anderer Pfad
+}
 
-console.log('[INITIAL-SYNC] Initial-Sync abgeschlossen: GitHub -> Katabump.');
+console.log('[INITIAL-SYNC] Initial-Sync abgeschlossen.');
