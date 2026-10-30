@@ -11,7 +11,6 @@ if (rootEnvResult.error && rootEnvResult.error.code !== 'ENOENT') {
   console.error('[BWW] Root-.env konnte nicht geladen werden:', rootEnvResult.error.message);
 }
 console.log(`[BWW] Bot-.env: ${envResult.error ? 'nicht gefunden' : 'geladen'} | Root-.env: ${rootEnvResult.error ? 'nicht gefunden' : 'geladen'}`);
-}
 const { Client, GatewayIntentBits, Partials, REST, Routes, Events, MessageFlags } = require('discord.js');
 const { commands } = require('./commands');
 const welcome = require('./events/welcome');
