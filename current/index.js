@@ -1,4 +1,17 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const envPath = path.join(__dirname, '.env');
+const envResult = dotenv.config({ path: envPath });
+
+if (envResult.error && envResult.error.code !== 'ENOENT') {
+  console.error('[VC] .env konnte nicht geladen werden:', envResult.error.message);
+} else {
+  console.log(`[VC] dotenv-Datei: ${envResult.error ? 'nicht gefunden' : envPath}`);
+}
 import { Client, GatewayIntentBits, ChannelType, ActivityType, AuditLogEvent, PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import {
   joinVoiceChannel,
