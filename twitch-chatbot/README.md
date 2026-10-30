@@ -79,7 +79,7 @@ Den `GIVEAWAY_SUPABASE_SECRET_KEY` niemals in `public/`, im Browser oder in KATA
 - `!giveawaystart 10 Preis` — startet als Broadcaster ein Giveaway für 10 Minuten
 - `giveaway` oder `!giveaway` — nimmt einmalig am aktiven Giveaway teil (Standard-Teilnahme-Wort, im Dashboard änderbar)
 
-Für die Timer-Fehlersuche kannst du in KataBump `DEBUG_TIMER=true` setzen und den Bot neu starten. Im Log erscheinen fehlende Variablen, IDs, API-Pfade und Twitch-Fehler, aber niemals der OAuth-Token. Danach wieder auf `false` setzen.
+Für die Twitch-Login-Fehlersuche kannst du in KataBump `DEBUG_TWITCH=true` setzen und den Bot neu starten. Der Bot prüft dann den Token über Twitch, vergleicht den Token-Login mit `BOT_USERNAME`, zeigt die gewährten Scopes und protokolliert Twitch-Notices sowie Verbindungsfehler. Der Token selbst wird niemals ausgegeben. Setze die Variable nach der Fehlersuche wieder auf `false`.\n\nFür die Timer-Fehlersuche kannst du in KataBump `DEBUG_TIMER=true` setzen und den Bot neu starten. Im Log erscheinen fehlende Variablen, IDs, API-Pfade und Twitch-Fehler, aber niemals der OAuth-Token. Danach wieder auf `false` setzen.
 
 Im Admin-Dashboard unter `/giveaway/admin` meldest du dich mit `GIVEAWAY_ADMIN_SECRET` an. Dort kannst du Giveaways starten, stoppen, nach dem Ende einen neuen Gewinner ziehen und die Twitch-Namen aller Teilnehmer sehen. Die Namen sind nur im Admin-Bereich sichtbar. `GIVEAWAY_BOT_SECRET` bleibt ausschließlich für die Verbindung zwischen KataBump und Vercel.
 
