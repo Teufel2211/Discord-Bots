@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#09090B">
+  <meta name="description" content="Live-Giveaway: Preis, Countdown und Teilnehmer in Echtzeit.">
+  <title>Giveaway · Twitch</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='4' fill='%2309090B'/%3E%3Cpath d='M8 3l1.2 3.8L13 8l-3.8 1.2L8 13 6.8 9.2 3 8l3.8-1.2L8 3z' fill='%23A78BFA'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --bg:#09090B;
+      --surface:#101012;
+      --surface-2:#151518;
+      --surface-3:#1A1A1E;
+      --line:#232327;
+      --line-soft:#1B1B1F;
+      --text:#F3F3F1;
+      --muted:#8C8C94;
+      --faint:#5C5C64;
+      --accent:#A78BFA;
+      --accent-soft:#A78BFA14;
+      --green:#4ADE80;
+      --red:#F87171;
+      --sans:'Geist',ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif;
+      --mono:'Geist Mono',ui-monospace,'SFMono-Regular',Consolas,monospace;
+      --radius:18px;
+      --pad:clamp(18px,4vw,40px);
+    }
+
+    *,*::before,*::after{box-sizing:border-box}
+    [hidden]{display:none!important}
+    html{-webkit-text-size-adjust:100%}
+    body{margin:0;min-height:100vh;display:flex;flex-direction:column;background:var(--bg);color:var(--text);
+      font-family:var(--sans);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+    button,input{font:inherit;color:inherit}
+    ::selection{background:#A78BFA40;color:#fff}
+    :focus-visible{outline:2px solid #A78BFA66;outline-offset:2px}
+
+    .glow{position:fixed;inset:0;z-index:0;pointer-events:none;
+      background:radial-gradient(900px 420px at 50% -10%,#A78BFA10,transparent 70%)}
+    .wrap{width:100%;max-width:1080px;margin:0 auto;padding:0 var(--pad)}
+
+    /* Kopfzeile */
+    .topbar{position:sticky;top:0;z-index:30;background:#09090BCC;backdrop-filter:blur(14px);border-bottom:1px solid var(--line-soft)}
+    .topbar-inner{display:flex;align-items:center;justify-content:space-between;gap:16px;height:64px}
+    .brand{display:flex;align-items:center;gap:10px;padding:6px 0;color:inherit;text-decoration:none;border-radius:8px}
+    .brand-mark{display:grid;place-items:center;width:27px;height:27px;flex:none;border-radius:8px;
+      border:1px solid #A78BFA2E;background:var(--accent-soft);color:var(--accent)}
+    .brand-text{font-size:14px;font-weight:600;letter-spacing:-.01em}
+    .brand-tag{padding:3px 6px;border:1px solid var(--line);border-radius:6px;font-family:var(--mono);
+      font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+    .top-actions{display:flex;align-items:center;gap:10px}
+
+    .status{display:inline-flex;align-items:center;gap:7px;height:32px;padding:0 11px;border:1px solid var(--line);
+      border-radius:999px;background:var(--surface);font-family:var(--mono);font-size:10px;letter-spacing:.08em;
+      text-transform:uppercase;color:var(--muted);white-space:nowrap;transition:color .25s,border-color .25s,background .25s}
+    .status .dot{width:6px;height:6px;flex:none;border-radius:50%;background:currentColor}
+    .status.live{color:var(--green);border-color:#4ADE8033;background:#4ADE800D}
+    .status.live .dot{box-shadow:0 0 0 3px #4ADE801A;animation:pulse 2s ease-in-out infinite}
+    .status.ended{color:var(--accent);border-color:#A78BFA33;background:var(--accent-soft)}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+
+    .conn{position:relative;z-index:19;padding:8px var(--pad);border-bottom:1px solid #F8717133;background:#F8717110;
+      color:#FCA5A5;font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;text-align:center}
+
+    /* Bühne */
+    .main{position:relative;z-index:1;flex:1;padding-top:clamp(40px,7vh,72px);padding-bottom:clamp(40px,7vh,64px)}
+    .hero{max-width:760px;margin-bottom:clamp(28px,5vh,44px);animation:rise .5s cubic-bezier(.2,.7,.2,1) both}
+    .kicker{display:inline-flex;align-items:center;gap:8px;margin-bottom:14px;font-family:var(--mono);font-size:10px;
+      letter-spacing:.12em;text-transform:uppercase;color:var(--accent);transition:color .25s}
+    .kicker::before{content:"";width:6px;height:6px;flex:none;border-radius:50%;background:currentColor}
+    body[data-state="idle"] .kicker,body[data-state="ended"] .kicker{color:var(--muted)}
+    .prize{margin:0;font-size:clamp(36px,5.6vw,64px);font-weight:600;line-height:1.04;letter-spacing:-.035em;
+      text-wrap:balance;overflow-wrap:anywhere;transition:color .3s}
+    .prize.long{font-size:clamp(29px,4.3vw,48px)}
+    .prize.xlong{font-size:clamp(23px,3.4vw,36px)}
+    body[data-state="idle"] .prize{color:#6E6E76}
+    .sub{max-width:62ch;margin:12px 0 0;color:var(--muted);font-size:15px}
+
+    .layout{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(262px,.72fr);gap:16px;
+      animation:rise .5s .06s cubic-bezier(.2,.7,.2,1) both}
+
+    .card{padding:clamp(20px,2.6vw,30px);border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);
+      box-shadow:inset 0 1px 0 #FFFFFF06}
+
+    .label{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+
+    /* Countdown */
+    .timer-card{display:flex;flex-direction:column;min-height:300px}
+    .card-top{display:flex;align-items:center;justify-content:space-between;gap:12px}
+    .timer{display:flex;align-items:baseline;gap:4px;margin:auto 0;padding:26px 0 22px;
+      font-size:clamp(64px,10.5vw,118px);font-weight:500;line-height:.9;letter-spacing:-.055em;
+      font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1;color:var(--text);transition:color .3s}
+    .timer .num{display:inline-block}
+    .timer .colon{color:var(--faint);font-weight:400;transform:translateY(-.04em)}
+    .timer.idle{gap:0;font-size:clamp(38px,5vw,56px);letter-spacing:-.02em}
+    .timer.idle .colon{display:none}
+    body[data-state="idle"] .timer{color:#65656E}
+    body[data-state="ended"] .timer{color:#8C8C94}
+    .timer-foot{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 16px;
+      padding-top:16px;border-top:1px solid var(--line-soft);color:var(--muted);font-size:12px}
+    .hint{display:inline-flex;align-items:center;gap:6px}
+    .hint code{padding:3px 6px;border:1px solid var(--line);border-radius:6px;background:var(--surface-2);
+      color:var(--text);font-family:var(--mono);font-size:11px}
+
+    /* Seitenspalte */
+    .side{display:flex;flex-direction:column;gap:16px}
+    .stat-card{display:flex;flex:1;flex-direction:column;justify-content:center;gap:6px;min-height:150px}
+    .stat-value{font-size:clamp(40px,5vw,54px);font-weight:600;line-height:1;letter-spacing:-.04em;
+      font-variant-numeric:tabular-nums;transition:color .3s}
+    body[data-state="idle"] .stat-value{color:#65656E}
+    .meta{font-size:12px;color:var(--faint)}
+
+    .word-card{display:flex;flex-direction:column;gap:10px}
+    .word-chip{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;padding:11px 12px;
+      border:1px solid var(--line);border-radius:10px;background:var(--surface-2);color:var(--text);
+      font-family:var(--mono);font-size:14px;cursor:pointer;transition:border-color .2s,background .2s,color .2s}
+    .word-chip:hover{border-color:#36363E;background:var(--surface-3)}
+    .word-chip svg{flex:none;opacity:.45;transition:opacity .2s}
+    .word-chip:hover svg{opacity:.8}
+    .word-chip.copied{border-color:#4ADE8055;color:var(--green)}
+    .word-chip.copied svg{opacity:1}
+
+    /* Gewinner */
+    .winner{display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-top:16px;
+      padding:clamp(20px,2.6vw,28px);border:1px solid #A78BFA33;border-radius:var(--radius);
+      background:linear-gradient(180deg,#A78BFA0D,transparent 70%),var(--surface);
+      animation:rise .45s cubic-bezier(.2,.7,.2,1) both}
+    .winner-main{display:flex;flex-direction:column;gap:5px;min-width:0}
+    .winner .label{color:var(--accent)}
+    .winner-name{font-size:clamp(30px,4.4vw,44px);font-weight:600;line-height:1.1;letter-spacing:-.03em;
+      overflow-wrap:anywhere}
+    .winner-note{font-size:12px;color:var(--muted)}
+
+    /* Fuß */
+    .footer{position:relative;z-index:1;margin-top:auto;border-top:1px solid var(--line-soft);padding:16px 0}
+    .footer-inner{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px 16px;font-family:var(--mono);
+      font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
+
+    @keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+    /* Admin-Zugang */
+    .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:40px;padding:0 16px;
+      border:1px solid transparent;border-radius:10px;background:var(--text);color:#0A0A0B;font-size:13px;
+      font-weight:600;letter-spacing:-.005em;text-decoration:none;cursor:pointer;
+      transition:background .18s,border-color .18s,color .18s,transform .1s}
+    .btn:hover{background:#fff}
+    .btn:active{transform:scale(.985)}
+    .btn:disabled{background:var(--surface-2);border-color:var(--line);color:var(--faint);cursor:not-allowed;transform:none}
+    .btn-sm{height:32px;padding:0 11px;border-radius:9px;font-size:12px}
+    .btn-ghost{background:var(--surface);border-color:var(--line);color:var(--text)}
+    .btn-ghost:hover{background:var(--surface-2);border-color:#35353D}
+
+    @media (max-width:900px){
+      .layout{grid-template-columns:1fr}
+      .side{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+      .stat-card{min-height:0}
+    }
+    @media (max-width:600px){
+      .topbar-inner{height:58px}
+      .brand-tag{display:none}
+      .hero{margin-bottom:26px}
+      .side{grid-template-columns:1fr}
+      .timer-card{min-height:0}
+      .timer{padding:34px 0 30px;font-size:clamp(58px,18vw,84px)}
+      .timer-foot{align-items:flex-start;flex-direction:column}
+      .winner{align-items:flex-start;flex-direction:column;gap:12px}
+    }
+    @media (prefers-reduced-motion:reduce){
+      *,*::before,*::after{animation-duration:.001ms!important;transition-duration:.001ms!important}
+    }
+  </style>
+</head>
+<body data-state="idle">
+  <div class="glow" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <div class="wrap topbar-inner">
+      <a class="brand" href="/giveaway" aria-label="Giveaway-Startseite">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 16 16" width="13" height="13" fill="currentColor"><path d="M8 1.2l1.7 5.1 5.1 1.7-5.1 1.7L8 14.8 6.3 9.7 1.2 8l5.1-1.7L8 1.2z"/></svg>
+        </span>
+        <span class="brand-text">Giveaway</span>
+        <span class="brand-tag">Twitch</span>
+      </a>
+      <div class="top-actions">
+        <span id="status" class="status idle" role="status" aria-live="polite">
+          <span class="dot" aria-hidden="true"></span>
+          <span id="statusText">Bereit</span>
+        </span>
+        <a class="btn btn-ghost btn-sm" href="/giveaway/admin">Admin</a>
+      </div>
+    </div>
+  </header>
+
+  <div id="conn" class="conn" hidden>Verbindung zur API verloren – letzter Stand wird angezeigt.</div>
+
+  <main class="wrap main">
+    <section class="hero">
+      <span id="kickerText" class="kicker">Bereit für den nächsten Drop</span>
+      <h1 id="prize" class="prize">Kein Giveaway aktiv</h1>
+      <p id="sub" class="sub">Sobald das Giveaway startet, erscheint hier der Preis.</p>
+    </section>
+
+    <section class="layout" aria-label="Giveaway-Status">
+      <article class="card timer-card">
+        <div class="card-top">
+          <span class="label">Verbleibende Zeit</span>
+        </div>
+        <div id="countdown" class="timer" role="timer" aria-live="off" aria-label="Kein aktives Giveaway">
+          <span id="cdMin" class="num">--</span><span class="colon" aria-hidden="true">:</span><span id="cdSec" class="num">--</span>
+        </div>
+        <div class="timer-foot">
+          <span id="endsLabel">Noch nicht gestartet</span>
+          <span id="hint" class="hint">Teilnahme mit <code id="inlineWord">giveaway</code></span>
+        </div>
+      </article>
+
+      <div class="side">
+        <article class="card stat-card">
+          <span class="label">Teilnehmer</span>
+          <strong id="participants" class="stat-value">0</strong>
+          <span id="updated" class="meta">–</span>
+        </article>
+
+        <article class="card word-card">
+          <span class="label">Teilnahme-Wort</span>
+          <button id="wordChip" class="word-chip" type="button" title="In die Zwischenablage kopieren">
+            <span id="wordText">giveaway</span>
+            <svg viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden="true">
+              <rect x="5.5" y="5.5" width="8" height="8" rx="1.6" stroke="currentColor"/>
+              <path d="M10.5 5.5V3.6A1.1 1.1 0 0 0 9.4 2.5H3.6A1.1 1.1 0 0 0 2.5 3.6v5.8a1.1 1.1 0 0 0 1.1 1.1h1.9" stroke="currentColor"/>
+            </svg>
+          </button>
+          <span id="wordMeta" class="meta">Im Chat schreiben – auch mit !</span>
+        </article>
+      </div>
+    </section>
+
+    <section id="winnerBanner" class="winner" hidden aria-live="polite">
+      <div class="winner-main">
+        <span class="label">Gewinner</span>
+        <strong id="winnerName" class="winner-name">–</strong>
+      </div>
+      <span class="winner-note">Glückwunsch · melde dich im Chat</span>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap footer-inner">
+      <span>Twitch Giveaway</span>
+      <span id="footerWord">Teilnahme mit giveaway</span>
+    </div>
+  </footer>
+
+  <script>
+    (() => {
+      'use strict';
+
+      const $ = (id) => document.getElementById(id);
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const nf = new Intl.NumberFormat('de-DE');
+
+      const el = {
+        status: $('status'), statusText: $('statusText'), kicker: $('kickerText'), prize: $('prize'), sub: $('sub'),
+        cdMin: $('cdMin'), cdSec: $('cdSec'), countdown: $('countdown'), endsLabel: $('endsLabel'),
+        inlineWord: $('inlineWord'), wordText: $('wordText'), wordChip: $('wordChip'), wordMeta: $('wordMeta'),
+        footerWord: $('footerWord'), participants: $('participants'), updated: $('updated'),
+        winnerBanner: $('winnerBanner'), winnerName: $('winnerName'), conn: $('conn')
+      };
+
+      let state = { status: 'idle', joinWord: 'giveaway' };
+      let busy = false;
+      let queued = false;
+      let copyTimer = 0;
+
+      const timeText = (value) => new Date(Number(value)).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+
+      function stateWord() {
+        const word = String(state.joinWord || '').trim().replace(/^!+/, '').toLowerCase();
+        return /^[a-z0-9äöüß_-]{2,24}$/.test(word) ? word : 'giveaway';
+      }
+
+      function setNumber(node, value) {
+        if (node.textContent === value) return;
+        const animate = !reduceMotion && node.textContent !== '--' && typeof node.animate === 'function';
+        node.textContent = value;
+        if (animate) {
+          node.animate(
+            [{ transform: 'translateY(-16%)' }, { transform: 'translateY(0)' }],
+            { duration: 260, easing: 'cubic-bezier(.2,.7,.2,1)' }
+          );
+        }
+      }
+
+      function tick() {
+        const active = state.status === 'active';
+        const ended = state.status === 'ended';
+        let minutes = '--';
+        let seconds = '--';
+        if (active && state.endsAt) {
+          el.countdown.classList.remove('idle');
+          const remaining = Math.max(0, Number(state.endsAt) - Date.now());
+          const leftMinutes = Math.floor(remaining / 60000);
+          const leftSeconds = Math.floor(remaining / 1000) % 60;
+          minutes = String(leftMinutes).padStart(2, '0');
+          seconds = String(leftSeconds).padStart(2, '0');
+          el.countdown.setAttribute('aria-label', `Noch ${leftMinutes} Minuten und ${leftSeconds} Sekunden`);
+        } else if (ended) {
+          el.countdown.classList.remove('idle');
+          minutes = '00';
+          seconds = '00';
+          el.countdown.setAttribute('aria-label', 'Giveaway beendet');
+        } else {
+          el.countdown.classList.add('idle');
+          minutes = 'Bereit';
+          seconds = '';
+          el.countdown.setAttribute('aria-label', 'Kein aktives Giveaway');
+        }
+        setNumber(el.cdMin, minutes);
+        setNumber(el.cdSec, seconds);
+      }
+
+      function render(next) {
+        state = next && typeof next === 'object' ? next : { status: 'idle' };
+        const status = state.status === 'active' || state.status === 'ended' ? state.status : 'idle';
+        const active = status === 'active';
+        const ended = status === 'ended';
+        document.body.dataset.state = status;
+
+        el.status.className = 'status ' + status;
+        el.statusText.textContent = active ? 'Live' : ended ? 'Beendet' : 'Bereit';
+        el.kicker.textContent = active ? 'Jetzt zu gewinnen' : ended ? 'Giveaway beendet' : 'Bereit für den nächsten Drop';
+
+        const word = stateWord();
+        el.inlineWord.textContent = word;
+        el.wordText.textContent = word;
+        el.footerWord.textContent = 'Teilnahme mit ' + word;
+
+        const prize = active || ended ? String(state.prize || '') : '';
+        el.prize.textContent = prize || (ended ? 'Giveaway beendet' : 'Kein Giveaway aktiv');
+        el.prize.classList.toggle('long', prize.length > 15 && prize.length <= 28);
+        el.prize.classList.toggle('xlong', prize.length > 28);
+
+        el.sub.textContent = active
+          ? `Tippe ${word} oder !${word} in den Twitch-Chat, um teilzunehmen.`
+          : ended
+            ? 'Danke an alle, die mitgemacht haben.'
+            : 'Sobald das Giveaway startet, erscheint hier der Preis.';
+
+        el.participants.textContent = nf.format(Math.max(0, Number(state.participants) || 0));
+        el.updated.textContent = state.updatedAt ? 'Zuletzt aktualisiert ' + timeText(state.updatedAt) : '–';
+        el.endsLabel.textContent = active && state.endsAt
+          ? `Endet ${timeText(state.endsAt)}`
+          : ended ? 'Runde beendet' : 'Noch nicht gestartet';
+
+        const winner = ended ? String(state.winner || '') : '';
+        el.winnerBanner.hidden = !winner;
+        el.winnerName.textContent = winner ? '@' + winner : '–';
+
+        tick();
+      }
+
+      async function refresh() {
+        if (busy) { queued = true; return; }
+        busy = true;
+        try {
+          const response = await fetch('/api/giveaway', { cache: 'no-store' });
+          if (!response.ok) throw new Error('HTTP ' + response.status);
+          render(await response.json());
+          el.conn.hidden = true;
+        } catch (error) {
+          el.conn.hidden = false;
+        } finally {
+          busy = false;
+          if (queued) { queued = false; refresh(); }
+        }
+      }
+
+      async function copyWord() {
+        try {
+          await navigator.clipboard.writeText(stateWord());
+        } catch (error) {
+          el.wordMeta.textContent = 'Kopieren nicht möglich';
+          window.clearTimeout(copyTimer);
+          copyTimer = window.setTimeout(() => {
+            el.wordMeta.textContent = 'Im Chat schreiben – auch mit !';
+          }, 1600);
+          return;
+        }
+        el.wordMeta.textContent = 'Kopiert';
+        el.wordChip.classList.add('copied');
+        window.clearTimeout(copyTimer);
+        copyTimer = window.setTimeout(() => {
+          el.wordMeta.textContent = 'Im Chat schreiben – auch mit !';
+          el.wordChip.classList.remove('copied');
+        }, 1400);
+      }
+
+      el.wordChip.addEventListener('click', copyWord);
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
+
+      refresh();
+      window.setInterval(refresh, 2000);
+      window.setInterval(tick, 250);
+    })();
+  </script>
+</body>
+</html>

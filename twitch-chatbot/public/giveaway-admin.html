@@ -1,0 +1,1003 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#09090B">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="description" content="Admin-Dashboard für das Twitch-Giveaway.">
+  <title>Giveaway · Admin</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='4' fill='%2309090B'/%3E%3Cpath d='M8 3l1.2 3.8L13 8l-3.8 1.2L8 13 6.8 9.2 3 8l3.8-1.2L8 3z' fill='%23A78BFA'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --bg:#09090B;
+      --surface:#101012;
+      --surface-2:#151518;
+      --surface-3:#1A1A1E;
+      --line:#232327;
+      --line-soft:#1B1B1F;
+      --text:#F3F3F1;
+      --muted:#8C8C94;
+      --faint:#5C5C64;
+      --accent:#A78BFA;
+      --accent-soft:#A78BFA14;
+      --green:#4ADE80;
+      --red:#F87171;
+      --sans:'Geist',ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif;
+      --mono:'Geist Mono',ui-monospace,'SFMono-Regular',Consolas,monospace;
+      --radius:18px;
+      --pad:clamp(18px,4vw,40px);
+      --main-top:clamp(30px,5vh,52px);
+      --main-bottom:clamp(36px,6vh,56px);
+    }
+
+    *,*::before,*::after{box-sizing:border-box}
+    [hidden]{display:none!important}
+    html{-webkit-text-size-adjust:100%}
+    body{margin:0;min-height:100vh;display:flex;flex-direction:column;background:var(--bg);color:var(--text);
+      font-family:var(--sans);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+    button,input{font:inherit;color:inherit}
+    ::selection{background:#A78BFA40;color:#fff}
+    :focus-visible{outline:2px solid #A78BFA66;outline-offset:2px}
+
+    .glow{position:fixed;inset:0;z-index:0;pointer-events:none;
+      background:radial-gradient(900px 420px at 50% -10%,#A78BFA10,transparent 70%)}
+    .wrap{width:100%;max-width:1120px;margin:0 auto;padding:0 var(--pad)}
+
+    /* Kopfzeile */
+    .topbar{position:sticky;top:0;z-index:30;background:#09090BCC;backdrop-filter:blur(14px);border-bottom:1px solid var(--line-soft)}
+    .topbar-inner{display:flex;align-items:center;justify-content:space-between;gap:16px;height:64px}
+    .brand{display:flex;align-items:center;gap:10px;padding:6px 0;color:inherit;text-decoration:none;border-radius:8px}
+    .brand-mark{display:grid;place-items:center;width:27px;height:27px;flex:none;border-radius:8px;
+      border:1px solid #A78BFA2E;background:var(--accent-soft);color:var(--accent)}
+    .brand-text{font-size:14px;font-weight:600;letter-spacing:-.01em}
+    .brand-tag{padding:3px 6px;border:1px solid #A78BFA2E;border-radius:6px;background:var(--accent-soft);
+      font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent)}
+    .top-actions{display:flex;align-items:center;gap:8px}
+
+    .status{display:inline-flex;align-items:center;gap:7px;height:32px;padding:0 11px;border:1px solid var(--line);
+      border-radius:999px;background:var(--surface);font-family:var(--mono);font-size:10px;letter-spacing:.08em;
+      text-transform:uppercase;color:var(--muted);white-space:nowrap;transition:color .25s,border-color .25s,background .25s}
+    .status .dot{width:6px;height:6px;flex:none;border-radius:50%;background:currentColor}
+    .status.live{color:var(--green);border-color:#4ADE8033;background:#4ADE800D}
+    .status.live .dot{box-shadow:0 0 0 3px #4ADE801A;animation:pulse 2s ease-in-out infinite}
+    .status.ended{color:var(--accent);border-color:#A78BFA33;background:var(--accent-soft)}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+
+    .conn{position:relative;z-index:19;padding:8px var(--pad);border-bottom:1px solid #F8717133;background:#F8717110;
+      color:#FCA5A5;font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;text-align:center}
+
+    .main{position:relative;z-index:1;flex:1;padding-top:var(--main-top);padding-bottom:var(--main-bottom)}
+
+    /* Login */
+    .login-view{display:grid;place-items:center;padding:24px 0;
+      min-height:calc(100vh - 64px - 50px - var(--main-top) - var(--main-bottom))}
+    .login-card{position:relative;width:100%;max-width:430px;padding:clamp(26px,4vw,36px);overflow:hidden;
+      border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);
+      box-shadow:inset 0 1px 0 #FFFFFF06,0 24px 60px #00000040;animation:rise .45s cubic-bezier(.2,.7,.2,1) both}
+    .login-card::before{content:"";position:absolute;top:0;left:28px;right:28px;height:1px;
+      background:linear-gradient(90deg,transparent,#A78BFA66,transparent)}
+    .login-card h1{margin:8px 0 0;font-size:clamp(28px,4vw,34px);font-weight:600;line-height:1.1;letter-spacing:-.03em}
+    .login-card .sub{margin:10px 0 24px;font-size:14px}
+    .login-form{display:flex;flex-direction:column;gap:14px}
+
+    /* Grundelemente */
+    .card{padding:clamp(18px,2.4vw,26px);border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);
+      box-shadow:inset 0 1px 0 #FFFFFF06}
+    .label{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+    .kicker{display:inline-flex;align-items:center;gap:8px;margin-bottom:10px;font-family:var(--mono);font-size:10px;
+      letter-spacing:.12em;text-transform:uppercase;color:var(--accent);transition:color .25s}
+    .kicker::before{content:"";width:6px;height:6px;flex:none;border-radius:50%;background:currentColor}
+    body[data-state="idle"] .kicker,body[data-state="ended"] .kicker{color:var(--muted)}
+    .sub{max-width:62ch;margin:10px 0 0;color:var(--muted);font-size:14px}
+    .meta{font-size:12px;color:var(--faint)}
+    .fine{margin:0;color:var(--faint);font-size:11.5px;line-height:1.5}
+
+    .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:40px;padding:0 16px;
+      border:1px solid transparent;border-radius:10px;background:var(--text);color:#0A0A0B;font-size:13px;
+      font-weight:600;letter-spacing:-.005em;text-decoration:none;cursor:pointer;
+      transition:background .18s,border-color .18s,color .18s,transform .1s}
+    .btn:hover{background:#fff}
+    .btn:active{transform:scale(.985)}
+    .btn:disabled{background:var(--surface-2);border-color:var(--line);color:var(--faint);cursor:not-allowed;transform:none}
+    .btn-sm{height:32px;padding:0 11px;border-radius:9px;font-size:12px}
+    .btn-ghost{background:var(--surface);border-color:var(--line);color:var(--text)}
+    .btn-ghost:hover{background:var(--surface-2);border-color:#35353D}
+    .btn-danger{background:#F8717112;border-color:#F8717133;color:#FCA5A5}
+    .btn-danger:hover{background:#F871711C;border-color:#F8717155}
+    .btn-danger:disabled{background:var(--surface-2);border-color:var(--line);color:var(--faint)}
+    .btn-block{width:100%}
+    .btn-row{display:flex;flex-wrap:wrap;gap:8px}
+    .icon-btn{display:grid;place-items:center;width:34px;height:34px;flex:none;border:1px solid var(--line);
+      border-radius:9px;background:var(--surface);color:var(--muted);cursor:pointer;transition:background .18s,color .18s,border-color .18s}
+    .icon-btn:hover{background:var(--surface-2);color:var(--text);border-color:#35353D}
+    .public-icon{flex:none}
+
+    .field-label{display:flex;flex-direction:column;gap:6px;min-width:0}
+    .input{width:100%;height:40px;padding:0 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);
+      color:var(--text);font-size:14px;transition:border-color .18s,box-shadow .18s,background .18s}
+    .input:hover{border-color:#303038}
+    .input:focus{outline:none;border-color:#A78BFA66;box-shadow:0 0 0 3px #A78BFA14;background:var(--surface-2)}
+    .input::placeholder{color:var(--faint)}
+    .input.invalid{border-color:#F87171B3;box-shadow:0 0 0 3px #F871711F}
+    .input-row{display:flex;gap:8px}
+    .input-row .input{flex:1;min-width:0}
+    .input-row .btn{flex:none}
+    .grid-2{display:grid;grid-template-columns:100px minmax(0,1fr);gap:10px}
+    .search{width:190px;height:32px;font-size:12px;padding:0 10px;border-radius:8px}
+
+    .message{min-height:20px;margin:14px 0 0;color:var(--muted);font-size:12px}
+    .message.ok{color:var(--green)}
+    .message.error{color:#FCA5A5}
+
+    /* Seite */
+    .page-head{margin-bottom:24px;animation:rise .45s cubic-bezier(.2,.7,.2,1) both}
+    .page-title{margin:0;font-size:clamp(30px,4.4vw,48px);font-weight:600;line-height:1.04;letter-spacing:-.035em;
+      text-wrap:balance;overflow-wrap:anywhere;transition:color .3s}
+    .page-title.long{font-size:clamp(27px,3.8vw,40px)}
+    .page-title.xlong{font-size:clamp(23px,3.1vw,32px)}
+    body[data-state="idle"] .page-title{color:#6E6E76}
+
+    .overview{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(0,.8fr) minmax(0,.9fr);gap:16px;
+      margin-bottom:16px;animation:rise .45s .04s cubic-bezier(.2,.7,.2,1) both}
+    .timer-card{display:flex;flex-direction:column;min-height:210px}
+    .card-top{display:flex;align-items:center;justify-content:space-between;gap:12px}
+    .timer{display:flex;align-items:baseline;gap:4px;margin:auto 0;padding:18px 0 16px;
+      font-size:clamp(52px,7.2vw,86px);font-weight:500;line-height:.9;letter-spacing:-.055em;
+      font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1;color:var(--text);transition:color .3s}
+    .timer .num{display:inline-block}
+    .timer .colon{color:var(--faint);font-weight:400;transform:translateY(-.04em)}
+    .timer.idle{gap:0;font-size:clamp(30px,4vw,44px);letter-spacing:-.02em}
+    .timer.idle .colon{display:none}
+    body[data-state="idle"] .timer{color:#65656E}
+    body[data-state="ended"] .timer{color:#8C8C94}
+    .timer-foot{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 14px;
+      padding-top:14px;border-top:1px solid var(--line-soft);color:var(--muted);font-size:12px}
+
+    .stat-card{display:flex;flex-direction:column;gap:6px}
+    .stat-value{margin-top:auto;font-size:clamp(40px,5vw,54px);font-weight:600;line-height:1;letter-spacing:-.04em;
+      font-variant-numeric:tabular-nums;transition:color .3s}
+    body[data-state="idle"] .stat-value{color:#65656E}
+
+    .word-card{display:flex;flex-direction:column;gap:10px}
+    .word-line{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:auto;
+      padding:8px 9px 8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface-2)}
+    .word-line code{font-family:var(--mono);font-size:15px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+    .badge{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;border:1px solid #4ADE8033;
+      border-radius:999px;background:#4ADE800D;color:var(--green);font-family:var(--mono);font-size:9px;
+      letter-spacing:.08em;text-transform:uppercase}
+    .badge::before{content:"";width:5px;height:5px;border-radius:50%;background:currentColor}
+    .badge.ended{color:var(--accent);border-color:#A78BFA33;background:var(--accent-soft)}
+    .count{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:18px;margin-left:4px;
+      padding:0 5px;border:1px solid var(--line);border-radius:5px;background:var(--surface-2);color:var(--muted);
+      font-size:9px;letter-spacing:0}
+
+    .controls{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,.95fr) minmax(0,.9fr);gap:16px;
+      margin-bottom:16px;animation:rise .45s .08s cubic-bezier(.2,.7,.2,1) both}
+    .control-card{display:flex;flex-direction:column;gap:12px}
+    .role-card{grid-column:1/-1}.role-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.role-option{display:grid;grid-template-columns:auto 1fr 64px;align-items:center;gap:9px;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface-2)}.role-option input[type="checkbox"]{accent-color:var(--accent);width:16px;height:16px}.role-option .role-name{font-size:13px}.role-option .role-weight{height:34px;padding:0 8px;text-align:center}.role-help{margin:0;color:var(--faint);font-size:11.5px}
+    .control-card > .btn{margin-top:auto}
+    .section-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+
+    .roster-card{padding:0;overflow:hidden;animation:rise .45s .12s cubic-bezier(.2,.7,.2,1) both}
+    .roster-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:18px 20px;
+      border-bottom:1px solid var(--line-soft)}
+    .roster-title{display:flex;align-items:center;gap:8px}
+    .roster{max-height:320px;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#2C2C33 transparent}
+    .roster::-webkit-scrollbar{width:8px}
+    .roster::-webkit-scrollbar-thumb{border:2px solid var(--surface);border-radius:999px;background:#2C2C33}
+    .roster-item{display:flex;align-items:center;gap:9px;height:40px;padding:0 20px;
+      border-bottom:1px solid var(--line-soft);font-size:13px}
+    .roster-item:last-child{border-bottom:0}
+    .roster-index{width:24px;flex:none;color:var(--faint);font-family:var(--mono);font-size:10px}
+    .roster-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .roster-empty{margin:0;padding:18px 20px;color:var(--muted);font-size:12.5px}
+
+    .winner{display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-top:16px;
+      padding:clamp(20px,2.6vw,28px);border:1px solid #A78BFA33;border-radius:var(--radius);
+      background:linear-gradient(180deg,#A78BFA0D,transparent 70%),var(--surface);
+      animation:rise .45s cubic-bezier(.2,.7,.2,1) both}
+    .winner-main{display:flex;flex-direction:column;gap:5px;min-width:0}
+    .winner .label{color:var(--accent)}
+    .winner-name{font-size:clamp(30px,4.4vw,44px);font-weight:600;line-height:1.1;letter-spacing:-.03em;
+      overflow-wrap:anywhere}
+    .winner-note{font-size:12px;color:var(--muted)}
+
+    .series-card{display:none;grid-column:1/-1;min-height:210px}
+    .series-card.is-visible{display:block}
+    .series-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
+    .series-title{display:flex;align-items:center;gap:10px;margin-top:12px}
+    .series-icon{display:grid;place-items:center;width:38px;height:38px;border:1px solid #A78BFA33;border-radius:10px;background:var(--accent-soft);color:var(--accent);font-size:22px;font-weight:700}
+    .series-name{font-size:20px;font-weight:600;letter-spacing:-.02em}
+    .series-meta{color:var(--accent);font-size:12px}
+    .series-pool{margin-top:18px;padding-top:14px;border-top:1px solid var(--line-soft)}
+    .series-pool-line{display:flex;justify-content:space-between;gap:12px;color:var(--muted);font-size:12px}.series-pool-line strong{color:var(--text);font-size:13px}
+    .series-bar{height:5px;margin-top:11px;border-radius:99px;background:var(--surface-3);overflow:hidden}.series-bar span{display:block;width:72%;height:100%;border-radius:99px;background:var(--accent)}
+    .series-help{margin:10px 0 0;color:var(--muted);font-size:12px}
+    .series-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+    .series-actions .btn{flex:1 1 200px}
+    body.duration-page #timerCard{display:none!important}
+    body.duration-page #startForm{display:none!important}
+
+    .footer{position:relative;z-index:1;margin-top:auto;border-top:1px solid var(--line-soft);padding:16px 0}
+    .footer-inner{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px 16px;font-family:var(--mono);
+      font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
+    .footer a{color:var(--muted);text-decoration:none}
+    .footer a:hover{color:var(--text)}
+
+    .toast{position:fixed;left:50%;bottom:22px;z-index:60;max-width:min(92vw,520px);padding:12px 16px;
+      border:1px solid var(--line);border-radius:12px;background:var(--surface-2);color:var(--text);font-size:13px;
+      box-shadow:0 14px 40px #00000066;opacity:0;transform:translate(-50%,10px);pointer-events:none;
+      transition:opacity .2s,transform .2s}
+    .toast.show{opacity:1;transform:translate(-50%,0)}
+    .toast.ok{border-color:#4ADE8033;color:#BBF7D0}
+    .toast.error{border-color:#F8717133;color:#FCA5A5}
+
+    @keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+    @media (max-width:980px){
+      .overview{grid-template-columns:1fr 1fr}
+      .timer-card{grid-column:1/-1;min-height:190px}
+      .controls{grid-template-columns:1fr 1fr}
+      .control-card:last-child{grid-column:1/-1}
+    }
+    @media (max-width:700px){
+      .overview{grid-template-columns:1fr}
+      .controls{grid-template-columns:1fr}
+      .control-card:last-child{grid-column:auto}
+      .role-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+    }
+    @media (max-width:600px){
+      .topbar-inner{height:58px}
+      .brand-tag{display:none}
+      .main{padding-top:28px}
+      .public-link{width:34px;padding:0}
+      .public-label{display:none}
+      .login-view{min-height:calc(100vh - 58px - 50px - 28px - var(--main-bottom))}
+      .page-title{font-size:clamp(28px,8vw,36px)}
+      .grid-2{grid-template-columns:1fr}
+      .role-grid{grid-template-columns:1fr}
+      .input-row{flex-direction:column}
+      .input-row .btn{width:100%}
+      .roster-head{flex-wrap:wrap}
+      .roster-head .search{width:100%}
+      .winner{align-items:flex-start;flex-direction:column;gap:12px}
+      .persistent-toggle{display:flex;align-items:flex-start;gap:10px;margin:16px 0;color:var(--text);cursor:pointer}
+      .persistent-toggle input{margin-top:3px;accent-color:var(--accent)}
+      .persistent-toggle span{display:grid;gap:3px}
+      .persistent-toggle small{color:var(--muted);line-height:1.4}
+      .btn-row .btn{flex:1 1 auto}
+    }
+    @media (max-width:380px){
+      .status{display:none}
+    }
+    @media (prefers-reduced-motion:reduce){
+      *,*::before,*::after{animation-duration:.001ms!important;transition-duration:.001ms!important}
+    }
+  </style>
+</head>
+<body data-state="idle">
+  <div class="glow" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <div class="wrap topbar-inner">
+      <a class="brand" href="/giveaway" aria-label="Zur öffentlichen Giveaway-Seite">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 16 16" width="13" height="13" fill="currentColor"><path d="M8 1.2l1.7 5.1 5.1 1.7-5.1 1.7L8 14.8 6.3 9.7 1.2 8l5.1-1.7L8 1.2z"/></svg>
+        </span>
+        <span class="brand-text">Giveaway</span>
+        <span class="brand-tag">Admin</span>
+      </a>
+      <div class="top-actions">
+        <span id="status" class="status idle" role="status" aria-live="polite">
+          <span class="dot" aria-hidden="true"></span>
+          <span id="statusText">Bereit</span>
+        </span>
+        <a class="btn btn-ghost btn-sm public-link" href="/giveaway" aria-label="Zur öffentlichen Seite" title="Zur öffentlichen Seite">
+          <svg class="public-icon" viewBox="0 0 16 16" width="13" height="13" fill="none" aria-hidden="true">
+            <path d="M10 3.5L5.5 8l4.5 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span class="public-label">Öffentliche Seite</span>
+        </a>
+        <button id="logoutButton" class="btn btn-ghost btn-sm" type="button" hidden>Abmelden</button>
+      </div>
+    </div>
+  </header>
+
+  <div id="conn" class="conn" hidden>Verbindung zur API verloren – letzter Stand wird angezeigt.</div>
+
+  <main class="wrap main">
+    <section id="loginView" class="login-view">
+      <div class="login-card">
+        <span class="kicker">Admin-Bereich</span>
+        <h1>Giveaway steuern</h1>
+        <p class="sub">Melde dich an, um Runden zu starten, das Teilnahme-Wort zu ändern und Gewinner zu ziehen.</p>
+        <form id="loginForm" class="login-form">
+          <label class="field-label" for="adminPassword">
+            <span class="label">Admin-Passwort</span>
+            <input id="adminPassword" class="input" type="password" autocomplete="current-password" placeholder="Passwort eingeben" required>
+          </label>
+          <button id="loginButton" class="btn btn-block" type="submit">Anmelden</button>
+        </form>
+        <p id="loginMessage" class="message" role="status" aria-live="polite"></p>
+        <p class="fine">Die Anmeldung bleibt 30 Tage in diesem Browser gespeichert. Das Passwort selbst wird nicht gespeichert.</p>
+      </div>
+    </section>
+
+    <div id="adminView" hidden>
+      <section class="page-head">
+        <span id="kickerText" class="kicker">Übersicht</span>
+        <h1 id="pageTitle" class="page-title">Kein Giveaway aktiv</h1>
+        <p id="pageSub" class="sub">Starte ein neues Giveaway oder ändere das Teilnahme-Wort.</p>
+      </section>
+
+      <section class="overview" aria-label="Status">
+        <article id="timerCard" class="card timer-card">
+          <div class="card-top">
+            <span class="label">Verbleibende Zeit</span>
+            <span id="roundBadge" class="badge" hidden>Live</span>
+          </div>
+          <div id="countdown" class="timer" role="timer" aria-live="off" aria-label="Kein aktives Giveaway">
+            <span id="cdMin" class="num">--</span><span class="colon" aria-hidden="true">:</span><span id="cdSec" class="num">--</span>
+          </div>
+          <div class="timer-foot">
+            <span id="endsLabel">Noch nicht gestartet</span>
+            <span id="roundWord">Teilnahme: giveaway oder !giveaway</span>
+          </div>
+        </article>
+
+        <article id="seriesCard" class="card series-card" aria-live="polite">
+          <div class="series-head">
+            <div>
+              <span class="label">Dauerhafte Giveaway-Serie</span>
+              <div class="series-title"><span class="series-icon" aria-hidden="true">∞</span><div><div class="series-name">Serie aktiv</div><div class="series-meta">Dauer-Modus · manuelles Ende</div></div></div>
+            </div>
+            <span class="badge">Live</span>
+          </div>
+          <div class="series-pool">
+            <div class="series-pool-line"><span>Teilnehmer-Pool für die nächste Runde</span><strong id="seriesPoolCount">0 Teilnehmer</strong></div>
+            <div class="series-bar" aria-hidden="true"><span></span></div>
+            <p class="series-help">Alle Teilnehmer bleiben erhalten. Der Gewinner der letzten Runde wird automatisch ausgeschlossen.</p>
+          </div>
+          <div class="series-actions">
+            <button id="seriesStopButton" class="btn btn-danger" type="button">Runde beenden &amp; Gewinner ziehen</button>
+            <button id="nextRoundButton" class="btn btn-ghost" type="button" hidden>Nächste Runde starten</button>
+          </div>
+        </article>
+
+        <article class="card stat-card">
+          <span class="label">Teilnehmer</span>
+          <strong id="participants" class="stat-value">0</strong>
+          <span id="updated" class="meta">–</span>
+        </article>
+
+        <article class="card word-card">
+          <span class="label">Teilnahme-Wort</span>
+          <div class="word-line">
+            <code id="wordText">giveaway</code>
+            <button id="copyWord" class="icon-btn" type="button" title="In die Zwischenablage kopieren" aria-label="Teilnahme-Wort kopieren">
+              <svg viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden="true">
+                <rect x="5.5" y="5.5" width="8" height="8" rx="1.6" stroke="currentColor"/>
+                <path d="M10.5 5.5V3.6A1.1 1.1 0 0 0 9.4 2.5H3.6A1.1 1.1 0 0 0 2.5 3.6v5.8a1.1 1.1 0 0 0 1.1 1.1h1.9" stroke="currentColor"/>
+              </svg>
+            </button>
+          </div>
+          <span class="meta">Mit und ohne ! im Chat</span>
+        </article>
+      </section>
+
+      <section class="controls" aria-label="Steuerung">
+        <form id="startForm" class="card control-card">
+          <div class="section-head">
+            <span class="label">Neues Giveaway</span>
+            <span class="meta">manuell oder 1–120 Min</span>
+          </div>
+          <div class="grid-2">
+            <label class="field-label" for="minutes">
+              <span class="label">Dauer</span>
+              <input id="minutes" class="input" type="number" min="1" max="120" step="1" value="10">
+            </label>
+            <label class="field-label" for="prizeInput">
+              <span class="label">Preis</span>
+              <input id="prizeInput" class="input" type="text" maxlength="200" placeholder="z. B. Gaming-Headset" required>
+            </label>
+          </div>
+          <label class="persistent-toggle" for="persistentMode">
+            <input id="persistentMode" type="checkbox">
+            <span><strong>Dauerhaftes Giveaway</strong><small>Keine automatische Endzeit. Beende die Runde manuell; beim nächsten manuellen Start bleiben die Teilnehmer dabei, außer der letzte Gewinner.</small></span>
+          </label>
+          <button id="startButton" class="btn btn-block" type="submit">Giveaway starten</button>
+        </form>
+
+        <section class="card control-card role-card">
+          <div class="section-head"><span class="label">Teilnahme &amp; Gewinnchance</span><span class="meta">Für nächste Runde · höchste Rolle zählt</span></div>
+          <p class="role-help">Eine Person erhält nur die Einstellung ihrer höchsten passenden Rolle. Werte sind Tickets: 3 = dreifache Chance gegenüber 1.</p>
+          <div id="roleGrid" class="role-grid">
+            <label class="role-option"><input data-role="broadcaster" type="checkbox" checked><span class="role-name">Broadcaster</span><input data-weight="broadcaster" class="input role-weight" type="number" min="1" max="100" value="1" aria-label="Broadcaster Chance"></label>
+            <label class="role-option"><input data-role="moderator" type="checkbox" checked><span class="role-name">Moderator</span><input data-weight="moderator" class="input role-weight" type="number" min="1" max="100" value="3" aria-label="Moderator Chance"></label>
+            <label class="role-option"><input data-role="vip" type="checkbox" checked><span class="role-name">VIP</span><input data-weight="vip" class="input role-weight" type="number" min="1" max="100" value="2" aria-label="VIP Chance"></label>
+            <label class="role-option"><input data-role="subscriber" type="checkbox" checked><span class="role-name">Subscriber</span><input data-weight="subscriber" class="input role-weight" type="number" min="1" max="100" value="2" aria-label="Subscriber Chance"></label>
+            <label class="role-option"><input data-role="follower" type="checkbox" checked><span class="role-name">Follower</span><input data-weight="follower" class="input role-weight" type="number" min="1" max="100" value="1" aria-label="Follower Chance"></label>
+            <label class="role-option"><input data-role="viewer" type="checkbox" checked><span class="role-name">Viewer</span><input data-weight="viewer" class="input role-weight" type="number" min="1" max="100" value="1" aria-label="Viewer Chance"></label>
+          </div>
+        </section>
+
+        <form id="wordForm" class="card control-card">
+          <div class="section-head">
+            <span class="label">Teilnahme-Wort</span>
+          </div>
+          <p class="fine">Zuschauer schreiben das Wort mit oder ohne ! in den Chat. 2–24 Zeichen, keine Leerzeichen.</p>
+          <div class="input-row">
+            <input id="joinWordInput" class="input" type="text" maxlength="25" placeholder="giveaway" spellcheck="false" autocapitalize="none" aria-label="Teilnahme-Wort" required>
+            <button id="saveWordButton" class="btn" type="submit">Speichern</button>
+          </div>
+        </form>
+
+        <div class="card control-card">
+          <div class="section-head">
+            <span class="label">Laufende Runde</span>
+          </div>
+          <p id="roundMeta" class="fine">Kein Giveaway aktiv.</p>
+          <div class="btn-row">
+            <button id="stopButton" class="btn btn-danger" type="button">Beenden &amp; ziehen</button>
+            <button id="rerollButton" class="btn btn-ghost" type="button">Reroll</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="card roster-card" aria-label="Teilnehmer">
+        <div class="roster-head">
+          <div class="roster-title">
+            <span class="label">Teilnehmer</span>
+            <span id="rosterCount" class="count">0</span>
+          </div>
+          <input id="rosterSearch" class="input search" type="search" placeholder="Suchen" aria-label="Teilnehmer suchen">
+        </div>
+        <div id="names" class="roster"></div>
+      </section>
+
+      <section id="winnerBanner" class="winner" hidden aria-live="polite">
+        <div class="winner-main">
+          <span class="label">Gewinner</span>
+          <strong id="winnerName" class="winner-name">–</strong>
+        </div>
+        <span class="winner-note">Glückwunsch · melde dich im Chat</span>
+      </section>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap footer-inner">
+      <span>Twitch Giveaway · Admin</span>
+      <a href="/giveaway">Öffentliche Seite</a>
+    </div>
+  </footer>
+
+  <p id="toast" class="toast" role="status" aria-live="polite"></p>
+
+  <script>
+    (() => {
+      'use strict';
+
+      const $ = (id) => document.getElementById(id);
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const nf = new Intl.NumberFormat('de-DE');
+      const RESERVED = new Set(['giveawaystart', 'hilfe', 'help', 'discord', 'dc', 'socials', 'würfel', 'timer', 'latenz', 'wt', 'watchtime']);
+      const durationPage = window.location.pathname.replace(/\/$/, '') === '/giveaway/admin-dauer';
+      const normalAdminPage = !durationPage && window.location.pathname.replace(/\/$/, '') === '/giveaway/admin';
+      if (durationPage) document.body.classList.add('duration-page');
+
+      const el = {
+        status: $('status'), statusText: $('statusText'), conn: $('conn'), timerCard: $('timerCard'), seriesCard: $('seriesCard'), seriesPoolCount: $('seriesPoolCount'), seriesStopButton: $('seriesStopButton'), nextRoundButton: $('nextRoundButton'),
+        loginView: $('loginView'), loginForm: $('loginForm'), loginButton: $('loginButton'),
+        password: $('adminPassword'), loginMessage: $('loginMessage'), logoutButton: $('logoutButton'),
+        adminView: $('adminView'), kicker: $('kickerText'), pageTitle: $('pageTitle'), pageSub: $('pageSub'),
+        roundBadge: $('roundBadge'), cdMin: $('cdMin'), cdSec: $('cdSec'), countdown: $('countdown'),
+        endsLabel: $('endsLabel'), roundWord: $('roundWord'), participants: $('participants'), updated: $('updated'),
+        wordText: $('wordText'), copyWord: $('copyWord'),
+        startForm: $('startForm'), startButton: $('startButton'), minutes: $('minutes'), prizeInput: $('prizeInput'), persistentMode: $('persistentMode'),
+        wordForm: $('wordForm'), joinWordInput: $('joinWordInput'), saveWordButton: $('saveWordButton'),
+        stopButton: $('stopButton'), rerollButton: $('rerollButton'), roundMeta: $('roundMeta'),
+        names: $('names'), rosterCount: $('rosterCount'), rosterSearch: $('rosterSearch'), roleGrid: $('roleGrid'),
+        winnerBanner: $('winnerBanner'), winnerName: $('winnerName'), toast: $('toast')
+      };
+
+      let state = { status: 'idle', joinWord: 'giveaway' };
+      let isAdmin = false;
+      let pendingSecret = '';
+      let roster = [];
+      let filter = '';
+      let busy = false;
+      let queued = false;
+      let actionBusy = false;
+      let toastTimer = 0;
+      let renderedRoleSettingsJson = '';
+      let persistentModeInitialized = false;
+      const roleDefaults = { broadcaster: { enabled: true, weight: 1 }, moderator: { enabled: true, weight: 3 }, vip: { enabled: true, weight: 2 }, subscriber: { enabled: true, weight: 2 }, follower: { enabled: true, weight: 1 }, viewer: { enabled: true, weight: 1 } };
+
+      const timeText = (value) => new Date(Number(value)).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+
+      function normalizeWord(value) {
+        const word = String(value || '').trim().replace(/^!+/, '').toLowerCase();
+        if (!/^[a-z0-9äöüß_-]{2,24}$/.test(word)) return '';
+        if (RESERVED.has(word)) return '';
+        return word;
+      }
+
+      const stateWord = () => normalizeWord(state.joinWord) || 'giveaway';
+
+      function setLoginMessage(text, tone = '') {
+        el.loginMessage.textContent = text;
+        el.loginMessage.className = 'message' + (tone ? ' ' + tone : '');
+      }
+
+      function toast(text, tone = '') {
+        el.toast.textContent = text;
+        el.toast.className = 'toast show' + (tone ? ' ' + tone : '');
+        window.clearTimeout(toastTimer);
+        toastTimer = window.setTimeout(() => { el.toast.className = 'toast'; }, tone === 'error' ? 5200 : 3400);
+      }
+
+      function setView() {
+        el.loginView.hidden = isAdmin;
+        el.adminView.hidden = !isAdmin;
+        el.logoutButton.hidden = !isAdmin;
+      }
+
+      function setNumber(node, value) {
+        if (node.textContent === value) return;
+        const animate = !reduceMotion && node.textContent !== '--' && typeof node.animate === 'function';
+        node.textContent = value;
+        if (animate) {
+          node.animate(
+            [{ transform: 'translateY(-16%)' }, { transform: 'translateY(0)' }],
+            { duration: 260, easing: 'cubic-bezier(.2,.7,.2,1)' }
+          );
+        }
+      }
+
+      function tick() {
+        const active = state.status === 'active';
+        const ended = state.status === 'ended';
+        let minutes = '--';
+        let seconds = '--';
+        if (active && state.endsAt) {
+          el.countdown.classList.remove('idle');
+          const remaining = Math.max(0, Number(state.endsAt) - Date.now());
+          const leftMinutes = Math.floor(remaining / 60000);
+          const leftSeconds = Math.floor(remaining / 1000) % 60;
+          minutes = String(leftMinutes).padStart(2, '0');
+          seconds = String(leftSeconds).padStart(2, '0');
+          el.countdown.setAttribute('aria-label', `Noch ${leftMinutes} Minuten und ${leftSeconds} Sekunden`);
+        } else if (active) {
+          el.countdown.classList.remove('idle');
+          minutes = 'Offen';
+          seconds = '';
+          el.countdown.setAttribute('aria-label', 'Dauerhaftes Giveaway ohne automatische Endzeit');
+        } else if (ended) {
+          el.countdown.classList.remove('idle');
+          minutes = '00';
+          seconds = '00';
+          el.countdown.setAttribute('aria-label', 'Giveaway beendet');
+        } else {
+          el.countdown.classList.add('idle');
+          minutes = 'Bereit';
+          seconds = '';
+          el.countdown.setAttribute('aria-label', 'Kein aktives Giveaway');
+        }
+        setNumber(el.cdMin, minutes);
+        setNumber(el.cdSec, seconds);
+      }
+
+      function setButtons() {
+        const active = state.status === 'active';
+        const ended = state.status === 'ended';
+        el.startButton.textContent = active ? 'Läuft bereits' : 'Giveaway starten';
+        el.startButton.disabled = actionBusy || active;
+        el.stopButton.disabled = actionBusy || !active;
+        el.rerollButton.disabled = actionBusy || !ended || roster.length === 0;
+        const persistent = Boolean(state.persistentMode);
+        el.seriesStopButton.disabled = actionBusy || !active;
+        el.nextRoundButton.hidden = !(persistent && ended);
+        el.nextRoundButton.disabled = actionBusy;
+      }
+
+      function readRoleSettings() {
+        const settings = {};
+        el.roleGrid.querySelectorAll('[data-role]').forEach((checkbox) => {
+          const role = checkbox.dataset.role;
+          const weightInput = el.roleGrid.querySelector(`[data-weight="${role}"]`);
+          settings[role] = { enabled: checkbox.checked, weight: Math.max(1, Math.min(100, Number.parseInt(weightInput.value, 10) || 1)) };
+        });
+        return settings;
+      }
+
+      function renderRoleSettings(settings) {
+        const next = { ...roleDefaults, ...(settings || {}) };
+        const signature = JSON.stringify(next);
+        if (signature === renderedRoleSettingsJson) return;
+        renderedRoleSettingsJson = signature;
+        el.roleGrid.querySelectorAll('[data-role]').forEach((checkbox) => { const value = next[checkbox.dataset.role] || roleDefaults.viewer; checkbox.checked = value.enabled !== false; const weightInput = el.roleGrid.querySelector(`[data-weight="${checkbox.dataset.role}"]`); weightInput.value = Math.max(1, Math.min(100, Number.parseInt(value.weight, 10) || 1)); });
+      }
+
+      function render(next) {
+        state = next && typeof next === 'object' ? next : { status: 'idle' };
+        const status = state.status === 'active' || state.status === 'ended' ? state.status : 'idle';
+        const active = status === 'active';
+        const ended = status === 'ended';
+        state.status = status;
+        document.body.dataset.state = status;
+
+        el.status.className = 'status ' + status;
+        el.statusText.textContent = active ? 'Live' : ended ? 'Beendet' : 'Bereit';
+
+        const word = stateWord();
+        el.wordText.textContent = word;
+        el.roundWord.textContent = `Teilnahme: ${word} oder !${word}`;
+        if (document.activeElement !== el.joinWordInput) el.joinWordInput.value = word;
+
+        const prize = active || ended ? String(state.prize || '') : '';
+        el.pageTitle.textContent = prize || (ended ? 'Giveaway beendet' : 'Kein Giveaway aktiv');
+        el.pageTitle.classList.toggle('long', prize.length > 15 && prize.length <= 28);
+        el.pageTitle.classList.toggle('xlong', prize.length > 28);
+
+        const participants = Math.max(0, Number(state.participants) || 0);
+        const persistent = Boolean(state.persistentMode);
+        if (normalAdminPage && isAdmin && persistent && (active || ended)) {
+          window.location.replace('/giveaway/admin-dauer');
+          return;
+        }
+        el.timerCard.hidden = persistent && (active || ended);
+        el.seriesCard.classList.toggle('is-visible', persistent && (active || ended));
+        el.seriesCard.querySelector('.series-name').textContent = active ? 'Serie aktiv' : 'Serie beendet';
+        el.seriesCard.querySelector('.series-meta').textContent = active ? 'Dauer-Modus · manuelles Ende' : 'Dauer-Modus · nächste Runde bereit';
+        el.seriesPoolCount.textContent = `${nf.format(participants)} Teilnehmer`;
+        el.seriesCard.querySelector('.badge').textContent = active ? 'Live' : 'Beendet';
+        el.seriesCard.querySelector('.badge').className = 'badge' + (ended ? ' ended' : '');
+        const endsText = state.endsAt ? timeText(state.endsAt) : '–';
+        el.kicker.textContent = active ? 'Live' : ended ? 'Beendet' : 'Übersicht';
+        el.pageSub.textContent = active
+          ? `${nf.format(participants)} Teilnehmer · ${state.endsAt ? `endet um ${endsText}` : 'endet manuell'}`
+          : ended
+            ? state.winner ? `Gewinner: @${state.winner}` : 'Die Runde ist beendet.'
+            : 'Starte ein neues Giveaway oder ändere das Teilnahme-Wort.';
+
+        el.participants.textContent = nf.format(participants);
+        renderRoleSettings(state.roleSettings);
+        if (!persistentModeInitialized && el.persistentMode) {
+          el.persistentMode.checked = Boolean(state.persistentMode);
+          persistentModeInitialized = true;
+        }
+        el.updated.textContent = state.updatedAt ? 'Aktualisiert ' + timeText(state.updatedAt) : '–';
+        el.endsLabel.textContent = active ? (state.endsAt ? `Endet ${endsText}` : 'Endet manuell') : ended ? 'Runde beendet' : 'Noch nicht gestartet';
+
+        el.roundBadge.hidden = status === 'idle';
+        el.roundBadge.className = 'badge' + (ended ? ' ended' : '');
+        el.roundBadge.textContent = active ? 'Live' : 'Beendet';
+
+        el.roundMeta.textContent = active
+          ? state.endsAt ? `Läuft bis ${endsText}. Beenden zieht sofort einen Gewinner.` : 'Läuft ohne automatische Endzeit. Beenden zieht sofort einen Gewinner.'
+          : ended
+            ? state.winner ? `Gewinner: @${state.winner}` : 'Runde beendet. Noch kein Gewinner.'
+            : 'Kein Giveaway aktiv.';
+
+        const winner = ended ? String(state.winner || '') : '';
+        el.winnerBanner.hidden = !winner;
+        el.winnerName.textContent = winner ? '@' + winner : '–';
+
+        setButtons();
+        tick();
+      }
+
+      function renderRoster() {
+        const query = filter.trim().toLowerCase();
+        const matches = roster.filter((entry) => String((entry && entry.username) || '').toLowerCase().includes(query));
+        el.rosterCount.textContent = nf.format(roster.length);
+        el.names.replaceChildren();
+
+        if (!matches.length) {
+          const empty = document.createElement('p');
+          empty.className = 'roster-empty';
+          empty.textContent = roster.length ? 'Kein Treffer.' : 'Noch keine Teilnehmer.';
+          el.names.append(empty);
+          return;
+        }
+
+        const visible = matches.slice(0, 300);
+        const fragment = document.createDocumentFragment();
+        visible.forEach((entry, index) => {
+          const row = document.createElement('div');
+          row.className = 'roster-item';
+          const position = document.createElement('span');
+          position.className = 'roster-index';
+          position.textContent = String(index + 1).padStart(2, '0');
+          const name = document.createElement('span');
+          name.className = 'roster-name';
+          name.textContent = '@' + String(entry.username || 'unbekannt');
+          row.append(position, name);
+          fragment.append(row);
+        });
+        if (matches.length > visible.length) {
+          const more = document.createElement('p');
+          more.className = 'roster-empty';
+          more.textContent = `+ ${nf.format(matches.length - visible.length)} weitere Teilnehmer`;
+          fragment.append(more);
+        }
+        el.names.append(fragment);
+      }
+
+      function resetRoster() {
+        roster = [];
+        filter = '';
+        el.rosterSearch.value = '';
+        el.names.replaceChildren();
+        el.rosterCount.textContent = '0';
+      }
+
+      async function refresh() {
+        if (busy) { queued = true; return; }
+        busy = true;
+        const useAdmin = isAdmin;
+        try {
+          const response = await fetch(useAdmin ? '/api/giveaway?mode=admin' : '/api/giveaway', {
+            cache: 'no-store',
+            credentials: 'same-origin'
+          });
+          if (useAdmin && response.status === 401) {
+            isAdmin = false;
+            pendingSecret = '';
+            resetRoster();
+            setView();
+            setLoginMessage('Sitzung abgelaufen. Bitte neu anmelden.', 'error');
+            el.conn.hidden = true;
+            window.setTimeout(refresh, 0);
+            return;
+          }
+          if (!response.ok) throw new Error('HTTP ' + response.status);
+          const data = await response.json();
+          render(data);
+          if (useAdmin) {
+            roster = Array.isArray(data.participantsData) ? data.participantsData : [];
+            renderRoster();
+            setButtons();
+          }
+          el.conn.hidden = true;
+        } catch (error) {
+          el.conn.hidden = false;
+        } finally {
+          busy = false;
+          if (queued) { queued = false; refresh(); }
+        }
+      }
+
+      async function command(action, payload = {}) {
+        const headers = { 'content-type': 'application/json' };
+        if (pendingSecret) headers.authorization = `Bearer ${pendingSecret}`;
+        const response = await fetch('/api/giveaway', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers,
+          body: JSON.stringify({ action, ...payload })
+        });
+        let data = {};
+        try { data = await response.json(); } catch (error) { data = {}; }
+        if (!response.ok) throw new Error(data.error || 'Aktion fehlgeschlagen');
+        return data;
+      }
+
+      async function bootstrap() {
+        try {
+          const response = await fetch('/api/giveaway?mode=session', { cache: 'no-store', credentials: 'same-origin' });
+          if (response.ok) {
+            const data = await response.json();
+            isAdmin = Boolean(data.authenticated);
+          }
+        } catch (error) {
+          /* öffentlicher Status */
+        }
+        setView();
+        await refresh();
+      }
+
+      async function handleLogin(event) {
+        event.preventDefault();
+        const candidate = el.password.value.trim();
+        if (!candidate) {
+          setLoginMessage('Bitte Admin-Passwort eingeben.', 'error');
+          el.password.focus();
+          return;
+        }
+        el.loginButton.disabled = true;
+        setLoginMessage('Prüfe Passwort …');
+        pendingSecret = candidate;
+        try {
+          await command('check');
+          pendingSecret = '';
+          isAdmin = true;
+          el.password.value = '';
+          setLoginMessage('');
+          setView();
+          toast('Angemeldet.', 'ok');
+          await refresh();
+          if (isAdmin) el.prizeInput.focus({ preventScroll: true });
+        } catch (error) {
+          pendingSecret = '';
+          isAdmin = false;
+          setView();
+          setLoginMessage('Passwort falsch. Bitte erneut versuchen.', 'error');
+          el.password.select();
+        } finally {
+          el.loginButton.disabled = false;
+        }
+      }
+
+      async function handleLogout() {
+        el.logoutButton.disabled = true;
+        try { await command('logout'); } catch (error) { /* lokal trotzdem abmelden */ }
+        isAdmin = false;
+        pendingSecret = '';
+        resetRoster();
+        setView();
+        setLoginMessage('');
+        toast('Abgemeldet.', 'ok');
+        el.logoutButton.disabled = false;
+        await refresh();
+        el.password.focus();
+      }
+
+      async function handleStart(event) {
+        event.preventDefault();
+        if (state.status === 'active') {
+          toast('Es läuft bereits ein Giveaway.', 'error');
+          return;
+        }
+        const persistentMode = el.persistentMode.checked;
+        const minutes = Number(el.minutes.value);
+        const prize = el.prizeInput.value.trim();
+        if (!persistentMode && (!Number.isInteger(minutes) || minutes < 1 || minutes > 120)) {
+          toast('Dauer muss eine ganze Zahl zwischen 1 und 120 Minuten sein.', 'error');
+          el.minutes.focus();
+          return;
+        }
+        if (!prize) {
+          toast('Bitte einen Preis eintragen.', 'error');
+          el.prizeInput.focus();
+          return;
+        }
+        actionBusy = true;
+        setButtons();
+        try {
+          await command('start', { minutes, prize, roleSettings: readRoleSettings(), persistentMode });
+          el.prizeInput.value = '';
+          toast('Giveaway gestartet.', 'ok');
+          if (persistentMode && !durationPage) {
+            window.location.replace('/giveaway/admin-dauer');
+            return;
+          }
+          if (!persistentMode && durationPage) {
+            window.location.replace('/giveaway/admin');
+            return;
+          }
+          await refresh();
+        } catch (error) {
+          toast(error.message, 'error');
+        } finally {
+          actionBusy = false;
+          setButtons();
+        }
+      }
+
+      function handleNextRound() {
+        if (state.status !== 'ended' || !state.persistentMode) return;
+        el.persistentMode.checked = true;
+        if (!el.prizeInput.value.trim()) el.prizeInput.value = String(state.prize || '');
+        el.startForm.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' });
+        window.setTimeout(() => el.prizeInput.focus({ preventScroll: true }), reduceMotion ? 0 : 250);
+      }
+
+      async function handleStop() {
+        if (state.status !== 'active') return;
+        actionBusy = true;
+        setButtons();
+        try {
+          await command('end');
+          toast('Giveaway beendet. Der Gewinner wird gezogen.', 'ok');
+          await refresh();
+        } catch (error) {
+          toast(error.message, 'error');
+        } finally {
+          actionBusy = false;
+          setButtons();
+        }
+      }
+
+      async function handleReroll() {
+        if (state.status !== 'ended' || roster.length === 0) return;
+        actionBusy = true;
+        setButtons();
+        try {
+          const result = await command('reroll');
+          toast('Neuer Gewinner: @' + result.winner, 'ok');
+          await refresh();
+        } catch (error) {
+          toast(error.message, 'error');
+        } finally {
+          actionBusy = false;
+          setButtons();
+        }
+      }
+
+      async function handleWordSave(event) {
+        event.preventDefault();
+        el.joinWordInput.classList.remove('invalid');
+        el.joinWordInput.removeAttribute('aria-invalid');
+        const cleaned = String(el.joinWordInput.value || '').trim().replace(/^!+/, '').toLowerCase();
+        if (!/^[a-z0-9äöüß_-]{2,24}$/.test(cleaned)) {
+          el.joinWordInput.classList.add('invalid');
+          el.joinWordInput.setAttribute('aria-invalid', 'true');
+          toast('Bitte 2–24 Zeichen: Buchstaben, Zahlen, _ oder -. Keine Leerzeichen.', 'error');
+          el.joinWordInput.focus();
+          return;
+        }
+        if (RESERVED.has(cleaned)) {
+          el.joinWordInput.classList.add('invalid');
+          el.joinWordInput.setAttribute('aria-invalid', 'true');
+          toast('Dieses Wort ist schon ein Chat-Befehl. Bitte ein anderes wählen.', 'error');
+          el.joinWordInput.focus();
+          return;
+        }
+        if (cleaned === stateWord()) {
+          el.joinWordInput.value = cleaned;
+          toast(`${cleaned} ist bereits das aktive Teilnahme-Wort.`, 'ok');
+          return;
+        }
+        el.saveWordButton.disabled = true;
+        try {
+          const result = await command('keyword', { joinWord: cleaned });
+          const saved = normalizeWord(result.joinWord) || cleaned;
+          el.joinWordInput.value = saved;
+          toast(`Teilnahme-Wort ist jetzt ${saved} – mit und ohne !.`, 'ok');
+          await refresh();
+        } catch (error) {
+          toast(error.message, 'error');
+        } finally {
+          el.saveWordButton.disabled = false;
+        }
+      }
+
+      async function copyWord() {
+        try {
+          await navigator.clipboard.writeText(stateWord());
+          toast('Teilnahme-Wort kopiert.', 'ok');
+        } catch (error) {
+          toast('Kopieren nicht möglich.', 'error');
+        }
+      }
+
+      el.loginForm.addEventListener('submit', handleLogin);
+      el.logoutButton.addEventListener('click', handleLogout);
+      el.startForm.addEventListener('submit', handleStart);
+      el.wordForm.addEventListener('submit', handleWordSave);
+      el.joinWordInput.addEventListener('input', () => {
+        el.joinWordInput.classList.remove('invalid');
+        el.joinWordInput.removeAttribute('aria-invalid');
+      });
+      el.copyWord.addEventListener('click', copyWord);
+      el.stopButton.addEventListener('click', handleStop);
+      el.seriesStopButton.addEventListener('click', handleStop);
+      el.nextRoundButton.addEventListener('click', handleNextRound);
+      el.rerollButton.addEventListener('click', handleReroll);
+      el.rosterSearch.addEventListener('input', () => { filter = el.rosterSearch.value; renderRoster(); });
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
+
+      bootstrap();
+      window.setInterval(refresh, 2000);
+      window.setInterval(tick, 250);
+    })();
+  </script>
+</body>
+</html>

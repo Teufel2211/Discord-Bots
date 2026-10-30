@@ -1,0 +1,10 @@
+# Node
+node_modules/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log

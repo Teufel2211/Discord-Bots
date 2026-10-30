@@ -1,0 +1,11 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
+    { "source": "/", "destination": "/giveaway.html" },
+    { "source": "/giveaway", "destination": "/giveaway.html" },
+    { "source": "/giveaway/admin", "destination": "/giveaway-admin.html" },
+    { "source": "/giveaway/admin/", "destination": "/giveaway-admin.html" },
+    { "source": "/giveaway/admin-dauer", "destination": "/giveaway-admin.html" },
+    { "source": "/giveaway/admin-dauer/", "destination": "/giveaway-admin.html" }
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "name": "bww",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "description": "BWW-Bot aus Teufel2211/bww (nur Bot-Teil: src/). Läuft unter dem Multibot-Loader, Deps kommen aus Root."
+}
