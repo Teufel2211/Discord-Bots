@@ -11,7 +11,6 @@ if (rootEnvResult.error && rootEnvResult.error.code !== "ENOENT") {
   console.error("[TTV] Root-.env konnte nicht geladen werden:", rootEnvResult.error.message);
 }
 console.log(`[TTV] Bot-.env: ${envResult.error ? 'nicht gefunden' : 'geladen'} | Root-.env: ${rootEnvResult.error ? 'nicht gefunden' : 'geladen'}`);
-}
 
 const tmi = require("tmi.js");
 const { commands } = require("./commands");
