@@ -5,6 +5,7 @@ const welcome = require('./events/welcome');
 const { embedV2 } = require('./utils/embeds');
 const interactions = require('./events/interactions');
 const { startGiveawayLoop } = require('./utils/giveaway');
+const { startRecurringMessageLoop } = require('./utils/recurring');
 const { updateStatusMessage, ensureStatusMessage, formatUptime } = require('./utils/status');
 const { isConfigured: databaseConfigured, getGuildSettings, upsertBotStatus, syncGuilds, markOffline, getPendingDashboardActions, claimDashboardAction, completeDashboardAction, failDashboardAction } = require('./utils/database');
 
@@ -75,6 +76,7 @@ client.once(Events.ClientReady, async (bot) => {
   await syncDatabase(bot, 'online');
   setInterval(() => syncDatabase(bot, 'online'), 30 * 1000);
   startGiveawayLoop(client);
+  startRecurringMessageLoop(client);
   processDashboardActions(bot).catch(() => {});
   setInterval(() => processDashboardActions(bot).catch(() => {}), 5000);
 
