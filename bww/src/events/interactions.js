@@ -310,7 +310,7 @@ module.exports = async (interaction, client) => {
     const text = interaction.options.getString('text', true);
     const title = interaction.options.getString('titel') || '';
     const attachment = interaction.options.getAttachment('bild');
-    const image = attachment?.url || '';
+    const image = attachment?.url || interaction.options.getString('bild_url') || '';
     const thumbnail = interaction.options.getString('thumbnail') || '';
     const color = interaction.options.getString('farbe') || '';
     const footer = interaction.options.getString('footer') || '';
