@@ -1,4 +1,16 @@
-require('dotenv').config();
+const path = require('node:path');
+const envPath = path.resolve(__dirname, '../../bww/.env');
+const rootEnvPath = path.resolve(__dirname, '../../.env');
+const envResult = require('dotenv').config({ path: envPath });
+const rootEnvResult = require('dotenv').config({ path: rootEnvPath });
+
+if (envResult.error && envResult.error.code !== 'ENOENT') {
+  console.error('[BWW] Bot-.env konnte nicht geladen werden:', envResult.error.message);
+}
+if (rootEnvResult.error && rootEnvResult.error.code !== 'ENOENT') {
+  console.error('[BWW] Root-.env konnte nicht geladen werden:', rootEnvResult.error.message);
+}
+console.log(`[BWW] Bot-.env: ${envResult.error ? 'nicht gefunden' : 'geladen'} | Root-.env: ${rootEnvResult.error ? 'nicht gefunden' : 'geladen'}`);
 const { Client, GatewayIntentBits, Partials, REST, Routes, Events, MessageFlags } = require('discord.js');
 const { commands } = require('./commands');
 const welcome = require('./events/welcome');

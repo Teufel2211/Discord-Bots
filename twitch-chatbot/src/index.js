@@ -1,4 +1,16 @@
-require("dotenv").config();
+const path = require("node:path");
+const envPath = path.resolve(__dirname, "../.env");
+const rootEnvPath = path.resolve(__dirname, "../../.env");
+const envResult = require("dotenv").config({ path: envPath });
+const rootEnvResult = require("dotenv").config({ path: rootEnvPath });
+
+if (envResult.error && envResult.error.code !== "ENOENT") {
+  console.error("[TTV] Bot-.env konnte nicht geladen werden:", envResult.error.message);
+}
+if (rootEnvResult.error && rootEnvResult.error.code !== "ENOENT") {
+  console.error("[TTV] Root-.env konnte nicht geladen werden:", rootEnvResult.error.message);
+}
+console.log(`[TTV] Bot-.env: ${envResult.error ? 'nicht gefunden' : 'geladen'} | Root-.env: ${rootEnvResult.error ? 'nicht gefunden' : 'geladen'}`);
 
 const tmi = require("tmi.js");
 const { commands } = require("./commands");
