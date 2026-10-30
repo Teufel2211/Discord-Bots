@@ -52,7 +52,8 @@ function mergeSettings(value) {
           key,
           Array.isArray(roles) ? roles.filter((id) => typeof id === 'string') : []
         ]))
-      : {}
+      : {},
+    recurringMessages: Array.isArray(parsed.recurringMessages) ? parsed.recurringMessages : []
   };
 }
 
