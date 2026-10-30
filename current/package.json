@@ -1,0 +1,7 @@
+{
+  "name": "vc-holder-bot",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Voice-Chat-Holder Bot; dependencies are installed from the repository root"
+}

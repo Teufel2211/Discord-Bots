@@ -2,7 +2,25 @@
 
 Sammlung der Discord- und Twitch-Bots.
 
-## Bots und KataBump-Abkürzungen
+## KataBump-Betrieb
+
+Es gibt zwei unterstützte Betriebsarten:
+
+### Eine KataBump-Instanz für alle drei Bots
+
+Wenn alle drei Bots in EINER KataBump-Instanz laufen sollen:
+
+- **Startbefehl:** `node start-all.js`
+- **GitHub-Branch:** optional `GITHUB_BRANCH=master` (Standard: `master`)
+- Beim Start wird zuerst das GitHub-Repository synchronisiert.
+- Danach werden die Root-Abhängigkeiten installiert.
+- Erst anschließend werden VC, BWW und TTV gestartet.
+
+Damit werden Änderungen aus GitHub bei jedem Neustart übernommen, ohne dass drei einzelne KataBump-Instanzen benötigt werden.
+
+### Drei getrennte KataBump-Instanzen
+
+Wenn jeder Bot einen eigenen KataBump-Server haben soll:
 
 | KataBump-Variable | Bot | Startdatei |
 |---|---|---|
@@ -10,55 +28,20 @@ Sammlung der Discord- und Twitch-Bots.
 | `BOT_ABBR=VC` | Voice-Chat-Holder | `current/index.js` |
 | `BOT_ABBR=TTV` | Twitch-Chatbot | `twitch-chatbot/src/index.js` |
 
-## KataBump: separater GitHub-Sync pro Bot
+Auf jeder Instanz lautet der Startbefehl `npm start`. Setze zusätzlich `GITHUB_BRANCH=master` und `SYNC_REQUIRED=true`. `bot-sync.js` synchronisiert dann den Branch und startet nur den ausgewählten Bot.
 
-Jeder KataBump-Server verwendet dasselbe GitHub-Repository, aber eine eigene `BOT_ABBR`-Variable. Beim Start lädt `bot-sync.js` den aktuellen Stand des konfigurierten Branches und startet anschließend ausschließlich den zugehörigen Bot.
+## Wichtige Hinweise
 
-**KataBump-Startbefehl für alle drei Server:**
-```bash
-npm start
-```
-
-**Umgebungsvariablen pro KataBump-Server:**
-
-BWW-Server:
-```env
-BOT_ABBR=BWW
-GITHUB_BRANCH=master
-SYNC_REQUIRED=true
-```
-
-VC-Server:
-```env
-BOT_ABBR=VC
-GITHUB_BRANCH=master
-SYNC_REQUIRED=true
-```
-
-Twitch-Server:
-```env
-BOT_ABBR=TTV
-GITHUB_BRANCH=master
-SYNC_REQUIRED=true
-```
-
-Die vorhandenen Bot-Secrets und Konfigurationsvariablen bleiben jeweils im zugehörigen KataBump-Server. Nicht dieselbe `.env`-Datei zwischen den Servern teilen.
-
-**Wichtig:** Der Sync führt `git fetch` und danach einen Hard-Reset auf `origin/<Branch>` aus. Änderungen an versionierten Dateien direkt im KataBump-Dateisystem werden damit verworfen. Nicht versionierte Dateien wie `.env` und `node_modules` bleiben erhalten. Bei fehlgeschlagenem Sync startet der Bot mit `SYNC_REQUIRED=false` ersatzweise mit dem vorhandenen lokalen Stand; mit `true` wird der Start abgebrochen.
+- Der Sync führt einen Hard-Reset auf `origin/<Branch>` aus. Lokale Änderungen an versionierten Dateien werden dadurch verworfen.
+- Nicht versionierte Dateien wie die jeweilige `.env` bleiben erhalten.
+- Tokens und Secrets niemals in GitHub committen.
+- Die Abhängigkeiten aller Bots werden zentral über die Root-`package.json` installiert.
+- `current/package.json` markiert den VC-Bot als ES-Modul, damit seine `import`-Anweisungen korrekt ausgeführt werden.
 
 ## Bots
 
 | Bot | Beschreibung | Ordner |
 |---|---|---|
 | **BWW** | Welcome, Verify, Tickets, Giveaways | `bww/` |
-| **VC** | Voice-Chat-Holder (24/7 VC-Holder, Leave-Grund, Warte-Büro) | `current/` |
-| **TTV** | Twitch-Chatbot: Commands, Giveaways, Watchtime | `twitch-chatbot/` |
-
-## Deployment
-
-Alle drei Bots laufen als getrennte KataBump-Server. Jeder Server synchronisiert beim Start aus dem GitHub-Repository, wählt anhand von `BOT_ABBR` nur seine eigene Startdatei und behält seine eigenen Secrets.
-
-## Secrets
-
-- `.env`-Dateien sind nicht im Repository (via `.gitignore` ausgeschlossen).
-- Tokens und Secrets niemals in GitHub committen.
+| **VC** | Voice-Chat-Holder | `current/` |
+| **TTV** | Twitch-Chatbot | `twitch-chatbot/` |
