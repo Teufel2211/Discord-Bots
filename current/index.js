@@ -5,12 +5,17 @@ import { fileURLToPath } from 'node:url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const envPath = path.join(__dirname, '.env');
+const rootEnvPath = path.resolve(__dirname, '../.env');
 const envResult = dotenv.config({ path: envPath });
+const rootEnvResult = dotenv.config({ path: rootEnvPath });
 
 if (envResult.error && envResult.error.code !== 'ENOENT') {
-  console.error('[VC] .env konnte nicht geladen werden:', envResult.error.message);
-} else {
-  console.log(`[VC] dotenv-Datei: ${envResult.error ? 'nicht gefunden' : envPath}`);
+  console.error('[VC] Bot-.env konnte nicht geladen werden:', envResult.error.message);
+}
+if (rootEnvResult.error && rootEnvResult.error.code !== 'ENOENT') {
+  console.error('[VC] Root-.env konnte nicht geladen werden:', rootEnvResult.error.message);
+}
+console.log(`[VC] Bot-.env: ${envResult.error ? 'nicht gefunden' : 'geladen'} | Root-.env: ${rootEnvResult.error ? 'nicht gefunden' : 'geladen'}`);
 }
 import { Client, GatewayIntentBits, ChannelType, ActivityType, AuditLogEvent, PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import {
