@@ -32,6 +32,58 @@ if (!password.startsWith("oauth:")) {
   process.exit(1);
 }
 
+const DEBUG_TWITCH = String(process.env.DEBUG_TWITCH || "").toLowerCase() === "true";
+
+function describeError(error) {
+  if (error == null) return { type: String(error), message: "Keine Fehlerdetails von tmi.js erhalten" };
+  if (typeof error === "string") return { type: "string", message: error };
+  const details = {
+    type: error.name || error.constructor?.name || "Error",
+    message: error.message || String(error)
+  };
+  if (error.code) details.code = error.code;
+  if (error.status) details.status = error.status;
+  if (error.command) details.command = error.command;
+  if (error.reason) details.reason = error.reason;
+  if (error.stack && DEBUG_TWITCH) details.stack = error.stack;
+  return details;
+}
+
+async function diagnoseTwitchToken() {
+  const token = password.replace(/^oauth:/i, "");
+  console.log("[TTV DEBUG] Prüfe Twitch-OAuth-Token (Tokenwert wird nicht ausgegeben) …");
+  try {
+    const response = await fetch("https://id.twitch.tv/oauth2/validate", {
+      headers: { Authorization: `OAuth ${token}` }
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      console.error("[TTV DEBUG] OAuth-Token ungültig:", {
+        httpStatus: response.status,
+        twitchMessage: data.message || "Keine Fehlerbeschreibung"
+      });
+      return;
+    }
+    const tokenLogin = String(data.login || "").toLowerCase();
+    const scopes = Array.isArray(data.scopes) ? data.scopes : [];
+    console.log("[TTV DEBUG] OAuth-Token gültig:", {
+      tokenLogin: data.login || "(nicht geliefert)",
+      configuredBotUsername: username,
+      usernameMatches: tokenLogin === username,
+      expiresInSeconds: data.expires_in ?? null,
+      scopes
+    });
+    if (tokenLogin && tokenLogin !== username) {
+      console.error("[TTV DEBUG] FEHLER: BOT_USERNAME und OAuth-Token gehören zu unterschiedlichen Twitch-Konten.");
+    }
+    for (const scope of ["chat:read", "chat:edit"]) {
+      if (!scopes.includes(scope)) console.warn(`[TTV DEBUG] Scope fehlt: ${scope}`);
+    }
+  } catch (error) {
+    console.error("[TTV DEBUG] OAuth-Prüfung fehlgeschlagen:", describeError(error));
+  }
+}
+
 const client = new tmi.Client({
   options: { debug: false },
   connection: { reconnect: true, secure: true },
@@ -137,9 +189,43 @@ async function pollGiveawayCommands() {
 restoreGiveawayState().catch((error) => console.error("Giveaway-Status konnte nicht wiederhergestellt werden:", error.message));
 pollGiveawayCommands();
 
+if (DEBUG_TWITCH) {
+  console.log("[TTV DEBUG] Verbindungsparameter:", {
+    botUsername: username,
+    channel,
+    oauthPrefixPresent: password.toLowerCase().startsWith("oauth:"),
+    tokenLength: password.replace(/^oauth:/i, "").length,
+    nodeVersion: process.version
+  });
+  diagnoseTwitchToken();
+}
+
 client.connect().catch((error) => {
-  console.error("Verbindung zu Twitch fehlgeschlagen:", error.message);
+  console.error("[TTV] Verbindung zu Twitch fehlgeschlagen:", describeError(error));
+  if (error == null) {
+    console.error("[TTV DEBUG] tmi.js hat den Verbindungsfehler ohne Error-Objekt zurückgegeben. Prüfe zusätzlich die folgenden disconnected-/notice-Logs.");
+  }
   process.exitCode = 1;
+});
+
+client.on("connecting", (address, port) => {
+  if (DEBUG_TWITCH) console.log("[TTV DEBUG] Verbinde zu Twitch:", { address, port, botUsername: username, channel });
+});
+
+client.on("logon", () => {
+  if (DEBUG_TWITCH) console.log("[TTV DEBUG] Twitch-IRC-Login erfolgreich.");
+});
+
+client.on("notice", (channelName, msgid, message) => {
+  console.error("[TTV] Twitch-Notice:", {
+    channel: channelName || null,
+    msgid: msgid || null,
+    message: message || null
+  });
+});
+
+client.on("error", (error) => {
+  console.error("[TTV] tmi.js-Fehler:", describeError(error));
 });
 
 client.on("connected", (address, port) => {
@@ -149,7 +235,14 @@ client.on("connected", (address, port) => {
 });
 
 client.on("disconnected", (reason) => {
-  console.warn("Twitch-Verbindung getrennt:", reason);
+  console.warn("[TTV] Twitch-Verbindung getrennt:", reason || "(kein Grund übermittelt)");
+  if (DEBUG_TWITCH) {
+    console.warn("[TTV DEBUG] Disconnect-Kontext:", {
+      botUsername: username,
+      channel,
+      timestamp: new Date().toISOString()
+    });
+  }
 });
 
 function attemptJoin(target, context, userId) {
