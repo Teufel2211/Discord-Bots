@@ -36,8 +36,23 @@ const commands = [
     { name: 'bild', description: 'Optionale Bild-URL', type: 3, required: false },
     { name: 'thumbnail', description: 'Optionale Thumbnail-URL', type: 3, required: false },
     { name: 'farbe', description: 'Hex-Farbe, z. B. 5865F2', type: 3, required: false },
-    { name: 'footer', description: 'Optionaler Footer', type: 3, required: false }
+    { name: 'footer', description: 'Optionaler Footer', type: 3, required: false },
+    { name: 'bild', description: 'Bild direkt vom PC oder Handy hochladen', type: 11, required: false }
   ]},
+  { name: 'nachricht-wiederholen', description: 'Sendet eine Nachricht automatisch in einem festen Intervall.', options: [
+    { name: 'text', description: 'Text der wiederkehrenden Nachricht', type: 3, required: true },
+    { name: 'intervall', description: 'Abstand als Zahl (mindestens 1)', type: 4, required: true, min_value: 1, max_value: 365 },
+    { name: 'einheit', description: 'Minuten, Stunden oder Tage', type: 3, required: true, choices: [
+      { name: 'Minuten', value: 'minuten' }, { name: 'Stunden', value: 'stunden' }, { name: 'Tage', value: 'tage' }
+    ]},
+    { name: 'kanal', description: 'Zielkanal (Standard: aktueller Kanal)', type: 7, required: false, channel_types: [0] },
+    { name: 'farbe', description: 'HEX-Farbe, z. B. #5865F2', type: 3, required: false, autocomplete: true },
+    { name: 'bild', description: 'Optionales Bild vom PC oder Handy', type: 11, required: false }
+  ]},
+  { name: 'wiederholung-stoppen', description: 'Stoppt eine gespeicherte wiederkehrende Nachricht.', options: [
+    { name: 'id', description: 'ID aus /nachricht-wiederholen', type: 3, required: true }
+  ]},
+  { name: 'wiederholung-liste', description: 'Zeigt aktive wiederkehrende Nachrichten.' },
   { name: 'setup', description: 'Zeigt die Setup-Hilfe.' },
   { name: 'verify', description: 'Sendet das konfigurierte Verify-System.' },
 
@@ -105,7 +120,7 @@ const commands = [
   { name: 'setup-permission', description: 'Rollenberechtigung f\u00FCr Commands setzen.', options: [
     { name: 'command', description: 'Command', type: 3, required: true, choices: [
       { name: 'nachricht', value: 'nachricht' }, { name: 'embed', value: 'embed' }, { name: 'setup', value: 'setup' }, { name: 'verify', value: 'verify' },
-      { name: 'ticket', value: 'ticket' }, { name: 'giveaway', value: 'giveaway' }, { name: 'panel-create', value: 'panel-create' }, { name: 'panel-send', value: 'panel-send' }, { name: 'panel-delete', value: 'panel-delete' }, { name: 'panel-list', value: 'panel-list' }, { name: 'panel-add-button', value: 'panel-add-button' }, { name: 'umfrage', value: 'umfrage' }, { name: 'setup-status', value: 'setup-status' }, { name: 'wartung', value: 'wartung' }, { name: 'restart', value: 'restart' },
+      { name: 'ticket', value: 'ticket' }, { name: 'giveaway', value: 'giveaway' }, { name: 'panel-create', value: 'panel-create' }, { name: 'panel-send', value: 'panel-send' }, { name: 'panel-delete', value: 'panel-delete' }, { name: 'panel-list', value: 'panel-list' }, { name: 'panel-add-button', value: 'panel-add-button' }, { name: 'umfrage', value: 'umfrage' }, { name: 'setup-status', value: 'setup-status' }, { name: 'wartung', value: 'wartung' }, { name: 'restart', value: 'restart' }, { name: 'nachricht-wiederholen', value: 'nachricht-wiederholen' }, { name: 'wiederholung-stoppen', value: 'wiederholung-stoppen' }, { name: 'wiederholung-liste', value: 'wiederholung-liste' },
       { name: 'kick', value: 'kick' }, { name: 'ban', value: 'ban' }, { name: 'unban', value: 'unban' }, { name: 'timeout', value: 'timeout' },
       { name: 'giverole', value: 'giverole' }, { name: 'removerole', value: 'removerole' }
     ]},
