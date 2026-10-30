@@ -16,7 +16,6 @@ if (rootEnvResult.error && rootEnvResult.error.code !== 'ENOENT') {
   console.error('[VC] Root-.env konnte nicht geladen werden:', rootEnvResult.error.message);
 }
 console.log(`[VC] Bot-.env: ${envResult.error ? 'nicht gefunden' : 'geladen'} | Root-.env: ${rootEnvResult.error ? 'nicht gefunden' : 'geladen'}`);
-}
 import { Client, GatewayIntentBits, ChannelType, ActivityType, AuditLogEvent, PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import {
   joinVoiceChannel,
