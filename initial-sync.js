@@ -9,34 +9,38 @@ function sh(cmd) {
   return execSync(cmd, { stdio: 'inherit' });
 }
 
+function shOk(cmd) {
+  try {
+    execSync(cmd, { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 try {
-  // 1) Sind wir in einem Git-Repo?
-  let isRepo = true;
-  try {
-    execSync('git rev-parse --is-inside-work-tree', { stdio: 'ignore' });
-  } catch {
-    isRepo = false;
-  }
-
-  if (!isRepo) {
+  // 1) Git-Repo existiert? Wenn nicht, mit Branch 'master' anlegen.
+  if (!shOk('git rev-parse --is-inside-work-tree')) {
     console.log('[INITIAL-SYNC] Kein Git-Repo gefunden - initialisiere Repo ...');
-    sh('git init');
+    if (!shOk('git init -b master')) {
+      sh('git init'); // Aeltere Git-Version ohne -b
+    }
   }
 
-  // 2) Remote 'origin' hart auf GitHub setzen (funktioniert auch, wenn keiner existiert).
-  try {
-    sh('git remote remove origin');
-  } catch {
-    // kein Remote vorhanden - egal
+  // 2) Remote 'origin' hart auf GitHub setzen (ohne stoerende Fehlermeldung).
+  if (shOk('git remote get-url origin')) {
+    sh(`git remote set-url origin ${REPO_URL}`);
+  } else {
+    sh(`git remote add origin ${REPO_URL}`);
   }
-  sh(`git remote add origin ${REPO_URL}`);
+  console.log(`[INITIAL-SYNC] Remote 'origin' -> ${REPO_URL}`);
 
   // 3) Branch holen und Working-Tree hart auf GitHub-Stand setzen.
   //    Untracked Dateien (.env, node_modules) bleiben erhalten.
   sh(`git fetch origin ${BRANCH}`);
   sh(`git checkout -f -B ${BRANCH} origin/${BRANCH}`);
 
-  console.log('[INITIAL-SYNC] Pull erfolgreich: GitHub -> KataBump.');
+  console.log(`[INITIAL-SYNC] Pull erfolgreich: GitHub -> KataBump (Branch '${BRANCH}').`);
 } catch (e) {
   console.log('[INITIAL-SYNC] Git-Pull fehlgeschlagen - ueberspringe.');
 }
