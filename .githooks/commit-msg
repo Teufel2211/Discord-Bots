@@ -1,12 +1,17 @@
 #!/bin/bash
 msgfile="$1"
 first_line="$(head -n 1 "$msgfile")"
+bot="${first_line%%[[:space:]]*}"
+bot="${bot//[\[\]]/}"
+bot="${bot%%:*}"
+bot="$(echo "$bot" | xargs)"
+bot_dir="$(git rev-parse --show-toplevel)/$bot"
 
-if printf '%s' "$first_line" | grep -qiE '^(bww|current|twitch-chatbot)(:|[[:space:]])'; then
+if [ -n "$bot" ] && [ -d "$bot_dir" ]; then
   exit 0
 fi
 
 echo "ERROR: Git-Commit wurde abgelehnt."
-echo "Commit-Message muss mit Bot-Abkürzung beginnen."
-echo "Erlaubte Formate: 'bww: <beschreibung>', 'current: <beschreibung>', 'twitch-chatbot: <beschreibung>'."
+echo "Commit-Message muss mit Bot-Abkürzung beginnen (z.B. 'bww: <beschreibung>')."
+echo "Bekannte Bots: bww, current, twitch-chatbot"
 exit 1
