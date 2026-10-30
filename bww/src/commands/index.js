@@ -41,7 +41,7 @@ const commands = [
   ]},
   { name: 'nachricht-wiederholen', description: 'Sendet eine Nachricht automatisch in einem festen Intervall.', options: [
     { name: 'text', description: 'Text der wiederkehrenden Nachricht', type: 3, required: true },
-    { name: 'intervall', description: 'Abstand als Zahl (mindestens 1)', type: 4, required: true, min_value: 1, max_value: 365 },
+    { name: 'intervall', description: 'Abstand als Zahl (mindestens 1)', type: 4, required: true, min_value: 1, max_value: 525600 },
     { name: 'einheit', description: 'Minuten, Stunden oder Tage', type: 3, required: true, choices: [
       { name: 'Minuten', value: 'minuten' }, { name: 'Stunden', value: 'stunden' }, { name: 'Tage', value: 'tage' }
     ]},
