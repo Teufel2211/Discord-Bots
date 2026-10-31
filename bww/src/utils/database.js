@@ -51,7 +51,8 @@ function mergeSettings(value) {
           Array.isArray(roles) ? roles.filter((id) => typeof id === 'string') : []
         ]))
       : {},
-    recurringMessages: Array.isArray(parsed.recurringMessages) ? parsed.recurringMessages : []
+    recurringMessages: Array.isArray(parsed.recurringMessages) ? parsed.recurringMessages : [],
+    robloxLinks: parsed.robloxLinks && typeof parsed.robloxLinks === 'object' && !Array.isArray(parsed.robloxLinks) ? parsed.robloxLinks : {}
   };
 }
 
@@ -119,7 +120,8 @@ async function patchGuildSettings(guildId, patch, updatedBy = null) {
     verify: { ...current.verify, ...(patch?.verify || {}) },
     ticket: { ...current.ticket, ...(patch?.ticket || {}) },
     status: { ...current.status, ...(patch?.status || {}) },
-    permissions: { ...current.permissions, ...(patch?.permissions || {}) }
+    permissions: { ...current.permissions, ...(patch?.permissions || {}) },
+    robloxLinks: { ...current.robloxLinks, ...(patch?.robloxLinks || {}) }
   });
   return saveGuildSettings(guildId, next, updatedBy);
 }
