@@ -6,7 +6,6 @@ const { ticketContainer, createTicket, TICKET_REASONS } = require('../utils/tick
 const { loadGiveaways, saveGiveaways, giveawayContainer, startGiveaway, finalizeGiveaway, rerollGiveaway, updateGiveawayMessage } = require('../utils/giveaway');
 const { getPanel, setPanel, deletePanel, loadPanels, panelContainer, buttonResponseContainer, addPanelMessage } = require('../utils/panels');
 const { createStatusMessage, updateStatusMessage } = require('../utils/status');
-const { isConfigured: isRobloxOAuthConfigured, createAuthorizationUrl } = require('../utils/roblox-oauth');
 
 const EPHEMERAL = { flags: MessageFlags.Ephemeral };
 const V2 = MessageFlags.IsComponentsV2;
@@ -40,13 +39,6 @@ module.exports = async (interaction, client) => {
     return interaction.respond([]);
   }
   const config = await getGuildSettings(interaction.guildId);
-  if (interaction.isButton() && interaction.customId === 'bww_roblox_link') {
-    if (!isRobloxOAuthConfigured()) return interaction.reply({ content: '❌ Die Roblox-OAuth-Anmeldung ist noch nicht konfiguriert.', ...EPHEMERAL });
-    try {
-      const url = createAuthorizationUrl(interaction.user.id, interaction.guildId);
-      return interaction.reply({ content: '🔗 [Jetzt sicher mit Roblox anmelden](' + url + ')\n\nDu wirst zur offiziellen Roblox-Zustimmungsseite weitergeleitet. Dein Passwort wird nicht vom Bot abgefragt.', ...EPHEMERAL });
-    } catch (error) { return interaction.reply({ content: '❌ Roblox-Anmeldung konnte nicht gestartet werden: ' + error.message, ...EPHEMERAL }); }
-  }
   if (interaction.isButton() && interaction.customId === 'bww_verify') {
     if (!config.verify.roleId) return interaction.reply({ content: '❌ Keine Verifizierungsrolle eingerichtet.', ...EPHEMERAL });
     const role = interaction.guild.roles.cache.get(config.verify.roleId) || await interaction.guild.roles.fetch(config.verify.roleId).catch(() => null);
@@ -109,30 +101,6 @@ module.exports = async (interaction, client) => {
   }
   if (!interaction.isChatInputCommand()) return;
   const command = interaction.commandName;
-  if (command === 'roblox-panel') {
-    if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) return interaction.reply({ content: '❌ Nur Administratoren dürfen das Roblox-Panel senden.', ...EPHEMERAL });
-    if (!isRobloxOAuthConfigured()) return interaction.reply({ content: '❌ Roblox OAuth ist noch nicht konfiguriert. Es fehlen ROBLOX_CLIENT_ID und/oder ROBLOX_REDIRECT_URI.', ...EPHEMERAL });
-    const panel = new ContainerBuilder().setAccentColor(0x5865F2);
-    panel.addTextDisplayComponents(new TextDisplayBuilder().setContent('## Roblox-Konto verknüpfen\nMelde dich mit deinem Roblox-Konto an. Nach erfolgreicher Anmeldung übernimmt der Bot deinen **Roblox-Anzeigenamen** als Discord-Servernamen.\n\nDie Anmeldung erfolgt direkt über Roblox OAuth. Dein Roblox-Passwort wird niemals vom Bot abgefragt.'));
-    panel.addActionRowComponents(new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('bww_roblox_link').setLabel('Mit Roblox anmelden').setStyle(ButtonStyle.Primary)));
-    await interaction.channel.send({ components: [panel], flags: V2, allowedMentions: { parse: [] } });
-    return interaction.reply({ content: '✅ Roblox-Verknüpfungs-Panel wurde gesendet.', ...EPHEMERAL });
-  }
-  if (command === 'roblox-status') {
-    const link = config.robloxLinks?.[interaction.user.id];
-    if (!link) return interaction.reply({ content: 'ℹ️ Du hast noch kein Roblox-Konto mit diesem Server verknüpft.', ...EPHEMERAL });
-    const profileUrl = link.profileUrl || 'https://www.roblox.com/users/' + link.robloxId + '/profile';
-    return interaction.reply({ content: '✅ Verknüpftes Roblox-Konto: **' + link.displayName + '**\nRoblox-ID: `' + link.robloxId + '`\n[Roblox-Profil öffnen](' + profileUrl + ')', ...EPHEMERAL });
-  }
-  if (command === 'roblox-unlink') {
-    const link = config.robloxLinks?.[interaction.user.id];
-    if (!link) return interaction.reply({ content: 'ℹ️ Es ist kein Roblox-Konto mit dir verknüpft.', ...EPHEMERAL });
-    delete config.robloxLinks[interaction.user.id];
-    await saveGuildSettings(interaction.guildId, config, interaction.user.id);
-    try { await interaction.member.setNickname(link.previousNickname || null, 'Roblox-Verknüpfung getrennt'); }
-    catch { return interaction.reply({ content: '✅ Roblox-Verknüpfung getrennt. Den vorherigen Discord-Namen konnte ich wegen fehlender Rechte nicht wiederherstellen.', ...EPHEMERAL }); }
-    return interaction.reply({ content: '✅ Roblox-Verknüpfung getrennt und vorheriger Discord-Servername wiederhergestellt.', ...EPHEMERAL });
-  }
   if (command.startsWith('setup-')) {
     if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) return interaction.reply({ content: '❌ Nur Administratoren dürfen das Setup ändern.', ...EPHEMERAL });
     if (command === 'setup-welcome') { config.welcome = { enabled: true, channelId: interaction.options.getChannel('channel').id, title: interaction.options.getString('title') || '', message: interaction.options.getString('text', true) }; await saveGuildSettings(interaction.guildId, config, interaction.user.id); return interaction.reply({ content: '✅ Welcome-System gespeichert.', ...EPHEMERAL }); }
@@ -358,7 +326,7 @@ module.exports = async (interaction, client) => {
   }
   if (command === 'setup') {
     const container = new ContainerBuilder().setAccentColor(0x2F3136);
-    container.addTextDisplayComponents(new TextDisplayBuilder().setContent('## BWW Setup\n`/setup-welcome` [channel] [text] [title?] → Welcome\n`/roblox-panel` → Roblox-OAuth-Panel\n`/roblox-status`/`/roblox-unlink` → Roblox-Konto verwalten\n`/setup-verify` → Verify\n`/setup-ticket` [kategorie] [rolle] → Ticket\n`/setup-status` [channel] → Status-Embed\n`/setup-permission` → Command-Berechtigungen\n`/restart` → Bot neu starten\n`/wartung` → Wartung an/aus\n`/panel-create` → Custom Panel (10 Buttons) speichern+senden\n`/panel-add-button` → Button hinzufügen\n`/panel-send`/`/panel-delete`/`/panel-list` → Panels verwalten\n`/nachricht-wiederholen` → Nachricht regelmäßig senden\n`/wiederholung-stoppen`/`/wiederholung-liste` → Wiederholungen verwalten\n`/embed` → Embed mit HEX-Farbe und Bild-Upload\n`/kick`, `/ban`, `/unban`, `/timeout` → Moderation\n`/giverole`, `/removerole` → Rollen'));
+    container.addTextDisplayComponents(new TextDisplayBuilder().setContent('## BWW Setup\n`/setup-welcome` [channel] [text] [title?] → Welcome\n`/setup-verify` → Verify\n`/setup-ticket` [kategorie] [rolle] → Ticket\n`/setup-status` [channel] → Status-Embed\n`/setup-permission` → Command-Berechtigungen\n`/restart` → Bot neu starten\n`/wartung` → Wartung an/aus\n`/panel-create` → Custom Panel (10 Buttons) speichern+senden\n`/panel-add-button` → Button hinzufügen\n`/panel-send`/`/panel-delete`/`/panel-list` → Panels verwalten\n`/nachricht-wiederholen` → Nachricht regelmäßig senden\n`/wiederholung-stoppen`/`/wiederholung-liste` → Wiederholungen verwalten\n`/embed` → Embed mit HEX-Farbe und Bild-Upload\n`/kick`, `/ban`, `/unban`, `/timeout` → Moderation\n`/giverole`, `/removerole` → Rollen'));
     container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true));
     container.addTextDisplayComponents(new TextDisplayBuilder().setContent('**Welcome-Platzhalter:**\n`{user}` → Ping\n`{username}` → Name\n`{displayname}` → Server-Nickname\n`{server}` → Servername\n`{id}` → User-ID\n`{count}` → Mitgliederzahl\n\nDer Avatar des Users erscheint automatisch oben rechts.'));
     return interaction.reply({ components: [container], flags: EPHEMERAL_V2 });
