@@ -55,6 +55,9 @@ const commands = [
   { name: 'wiederholung-liste', description: 'Zeigt aktive wiederkehrende Nachrichten.' },
   { name: 'setup', description: 'Zeigt die Setup-Hilfe.' },
   { name: 'verify', description: 'Sendet das konfigurierte Verify-System.' },
+  { name: 'roblox-panel', description: 'Sendet das Roblox-OAuth-Verknüpfungs-Embed (Admin).' },
+  { name: 'roblox-status', description: 'Zeigt deine verknüpfte Roblox-Identität.' },
+  { name: 'roblox-unlink', description: 'Trennt deine Roblox-Verknüpfung.' },
 
   { name: 'ticket', description: 'Sendet das Ticket-Panel.' },
   { name: 'giveaway', description: 'Startet ein Giveaway.', options: [
