@@ -15,7 +15,6 @@ const { startGiveawayLoop } = require('./utils/giveaway');
 const { startRecurringMessageLoop } = require('./utils/recurring');
 const { updateStatusMessage, ensureStatusMessage, formatUptime } = require('./utils/status');
 const { getGuildSettings } = require('./utils/database');
-const { startRobloxOAuthServer } = require('./utils/roblox-oauth');
 
 const token = process.env.DISCORD_TOKEN || '';
 if (!token) {
@@ -40,7 +39,6 @@ client.once(Events.ClientReady, async (bot) => {
     console.log(`BWW Bot online als ${bot.user.tag} (Commands nicht aktualisiert)`);
   }
 
-  startRobloxOAuthServer(client);
   startGiveawayLoop(client);
   startRecurringMessageLoop(client);
 
