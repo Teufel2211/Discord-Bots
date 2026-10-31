@@ -1,0 +1,13 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
+    {
+      "source": "/roblox/callback",
+      "destination": "http://51.75.118.18:20360/roblox/callback"
+    },
+    {
+      "source": "/health",
+      "destination": "http://51.75.118.18:20360/health"
+    }
+  ]
+}
