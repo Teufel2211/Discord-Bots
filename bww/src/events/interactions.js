@@ -302,8 +302,9 @@ module.exports = async (interaction, client) => {
   }
   if (command === 'nachricht') {
     const text = interaction.options.getString('text', true);
+    const title = interaction.options.getString('titel') || '';
     const image = interaction.options.getString('bild') || '';
-    const container = embedV2({ description: text, image });
+    const container = embedV2({ title, description: text, image });
     try {
       await interaction.channel.send({ components: [container], flags: V2, allowedMentions: { parse: [] } });
       return interaction.reply({ content: '✅ Components-V2-Embed gesendet.', ...EPHEMERAL });
