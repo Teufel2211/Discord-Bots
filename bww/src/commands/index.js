@@ -126,7 +126,7 @@ const commands = [
   { name: 'setup-permission', description: 'Rollenberechtigung f\u00FCr Commands setzen.', options: [
     { name: 'command', description: 'Command', type: 3, required: true, choices: [
       { name: 'nachricht', value: 'nachricht' }, { name: 'embed', value: 'embed' }, { name: 'setup', value: 'setup' }, { name: 'verify', value: 'verify' },
-      { name: 'ticket', value: 'ticket' }, { name: 'giveaway', value: 'giveaway' }, { name: 'einheiten', value: 'einheiten' }, { name: 'panel-create', value: 'panel-create' }, { name: 'panel-send', value: 'panel-send' }, { name: 'panel-delete', value: 'panel-delete' }, { name: 'panel-list', value: 'panel-list' }, { name: 'panel-add-button', value: 'panel-add-button' }, { name: 'umfrage', value: 'umfrage' }, { name: 'setup-status', value: 'setup-status' }, { name: 'wartung', value: 'wartung' }, { name: 'restart', value: 'restart' }, { name: 'nachricht-wiederholen', value: 'nachricht-wiederholen' }, { name: 'wiederholung-stoppen', value: 'wiederholung-stoppen' }, { name: 'wiederholung-liste', value: 'wiederholung-liste' },
+      { name: 'ticket', value: 'ticket' }, { name: 'giveaway', value: 'giveaway' }, { name: 'giveaway-protokoll', value: 'giveaway-protokoll' }, { name: 'einheiten', value: 'einheiten' }, { name: 'panel-create', value: 'panel-create' }, { name: 'panel-send', value: 'panel-send' }, { name: 'panel-delete', value: 'panel-delete' }, { name: 'panel-list', value: 'panel-list' }, { name: 'panel-add-button', value: 'panel-add-button' }, { name: 'umfrage', value: 'umfrage' }, { name: 'setup-status', value: 'setup-status' }, { name: 'wartung', value: 'wartung' }, { name: 'restart', value: 'restart' }, { name: 'nachricht-wiederholen', value: 'nachricht-wiederholen' }, { name: 'wiederholung-stoppen', value: 'wiederholung-stoppen' }, { name: 'wiederholung-liste', value: 'wiederholung-liste' },
       { name: 'kick', value: 'kick' }, { name: 'ban', value: 'ban' }, { name: 'unban', value: 'unban' }, { name: 'timeout', value: 'timeout' },
       { name: 'giverole', value: 'giverole' }, { name: 'removerole', value: 'removerole' }
     ]},
@@ -134,6 +134,7 @@ const commands = [
     { name: 'erlauben', description: 'true = erlauben, false = entfernen', type: 5, required: true }
   ]}
 
+  { name: 'giveaway-protokoll', description: 'Zeigt das Protokoll eines Giveaways.', options: [{ name: 'id', description: 'Giveaway-ID aus der Startmeldung', type: 3, required: true }]},
   { name: 'einheit-erstellen', description: 'Erstellt eine Kompanie, einen Zug oder eine Gruppe.', options: [
     { name: 'typ', description: 'Einheitentyp', type: 3, required: true, choices: [{ name: 'Kompanie', value: 'kompanie' }, { name: 'Zug', value: 'zug' }, { name: 'Gruppe', value: 'gruppe' }] },
     { name: 'name', description: 'Name der Einheit', type: 3, required: true },
