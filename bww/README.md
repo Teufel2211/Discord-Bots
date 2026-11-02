@@ -241,7 +241,7 @@ Das Webdashboard liegt unter `bww/website` und wird separat über Vercel bereitg
 ### Dashboard-Login
 
 1. Als Discord-Administrator `/dashboard-code` ausführen.
-2. Den einmaligen 8-stelligen Code im Dashboard eingeben.
+2. Den einmaligen 12-stelligen Code im Dashboard eingeben.
 3. Der Code ist fünf Minuten gültig und kann nur einmal eingelöst werden. Die Sitzung läuft nach sieben Tagen ab.
 
 Serverseitig benötigt das Vercel-Projekt `SUPABASE_URL` und `SUPABASE_SECRET_KEY`. Der Secret Key wird nicht an den Browser ausgeliefert. Es werden keine zusätzlichen Discord-OAuth-Secrets benötigt.
