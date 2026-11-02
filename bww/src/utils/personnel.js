@@ -1,5 +1,6 @@
 const { supabaseRequest } = require('./database');
 const { listUnits } = require('./units');
+const activityCheckAt = new Map();
 
 async function getRecord(guildId, userId) {
   const response = await supabaseRequest('bww_personalakten?select=*&guild_id=eq.' + guildId + '&user_id=eq.' + userId + '&limit=1', { headers: { Prefer: 'return=representation' } });
@@ -27,9 +28,12 @@ async function getEvents(guildId, userId) {
 }
 
 async function recordMessageActivity(guildId, userId) {
+  const key = guildId + ':' + userId;
+  const now = Date.now();
+  if (now - (activityCheckAt.get(key) || 0) < 30 * 60 * 1000) return false;
+  activityCheckAt.set(key, now);
   const record = await getRecord(guildId, userId);
   if (!record) return false;
-  const now = Date.now();
   const last = record.last_activity_at ? new Date(record.last_activity_at).getTime() : 0;
   if (now - last < 30 * 60 * 1000) return false;
   const timestamp = new Date(now).toISOString();
