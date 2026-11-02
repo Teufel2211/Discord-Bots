@@ -48,7 +48,7 @@ async function db(path, options = {}) {
   return text ? JSON.parse(text) : null;
 }
 function page(title, body, user) {
-  const nav = [['dashboard','Übersicht'],['personalakten','Personalakten'],['einheiten','Einheiten'],['raid','Raid Protection'],['embeds','Embeds'],['dm','DM-System'],['protokoll','Protokoll']];
+  const nav = [['dashboard','Übersicht'],['personalakten','Personalakten'],['einheiten','Einheiten'],['raid','Raid Protection'],['embeds','Embeds'],['dm','DM-System'],['tickets','Tickets'],['giveaways','Giveaways'],['einstellungen','Einstellungen'],['protokoll','Protokoll']];
   return '<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + escapeHtml(title) + ' · BWW</title><link rel="stylesheet" href="/style.css"></head><body><aside class="sidebar"><div class="brand"><span class="brand-mark">B</span><div><strong>BWW</strong><small>Waldstädt · Verwaltung</small></div></div><nav>' + nav.map(([key,label]) => '<a class="' + (title.toLowerCase().includes(key) || (key === 'dashboard' && title === 'Übersicht') ? 'active' : '') + '" href="/' + key + '">' + label + '</a>').join('') + '</nav><div class="account"><small>Angemeldet als</small><strong>' + escapeHtml(user.user_id) + '</strong><form method="post" action="/logout"><button class="button subtle" type="submit">Abmelden</button></form></div></aside><main><header><div><span class="eyebrow">BUNDESWEHR WALDSTÄDT</span><h1>' + escapeHtml(title) + '</h1></div><span class="status"><i></i> Verbunden</span></header>' + body + '</main></body></html>';
 }
 function alertBox(message, type = 'ok') { return '<div class="notice ' + type + '">' + escapeHtml(message) + '</div>'; }
@@ -241,9 +241,25 @@ app.get('/dm',requireSession,(req,res)=>res.send(page('DM-System',card('Nachrich
 app.post('/dm/send',requireSession,async(req,res)=>{
   const userId=String(req.body.user_id||''),content=String(req.body.content||'').trim().slice(0,1800);
   if(!/^\d{15,22}$/.test(userId)||!content)return res.status(400).send('Nutzer-ID oder Nachricht ungültig.');
-  await queueAction(req,'dm_send',{user_id:userId,content});
+  await queueAction(req,'dm_thread',{user_id:userId,content});
   res.redirect('/dm');
 });
+app.get('/tickets',requireSession,async(req,res)=>{
+  const rows=await db('bww_tickets?select=id,owner_id,reason,status,priority,claimed_by,created_at,updated_at&guild_id=eq.'+req.dashboardSession.guild_id+'&order=created_at.desc&limit=100',{headers:{Prefer:'return=representation'}});
+  const body=card('Ticketübersicht',table(['Ticket-ID','Ersteller','Grund','Status','Priorität','Bearbeiter','Erstellt'],rows.map(t=>[escapeHtml(t.id),escapeHtml(t.owner_id),escapeHtml(t.reason),escapeHtml(t.status),escapeHtml(t.priority),escapeHtml(t.claimed_by||'—'),escapeHtml(new Date(t.created_at).toLocaleString('de-DE'))])));
+  res.send(page('Tickets',body,req.dashboardSession));
+});
+app.get('/giveaways',requireSession,async(req,res)=>{
+  const rows=await db('bww_giveaways?select=id,prize,status,winner_count,end_at,current_winners,created_at&guild_id=eq.'+req.dashboardSession.guild_id+'&order=created_at.desc&limit=100',{headers:{Prefer:'return=representation'}});
+  const body=card('Giveaway-Verwaltung',table(['Preis','Status','Gewinner','Ende','Aktuelle Gewinner'],rows.map(g=>[escapeHtml(g.prize),escapeHtml(g.status),escapeHtml(g.winner_count),escapeHtml(g.end_at?new Date(g.end_at).toLocaleString('de-DE'):'—'),escapeHtml(JSON.stringify(g.current_winners||[]))])));
+  res.send(page('Giveaways',body,req.dashboardSession));
+});
+app.get('/einstellungen',requireSession,async(req,res)=>{
+  const settings=await getSettings(req.dashboardSession.guild_id);
+  const body=card('Server-Einstellungen', '<p class="muted">Zentrale Konfiguration aus bww_guild_settings. Die sicherheitsrelevanten Bereiche werden in den jeweiligen Verwaltungsseiten geändert.</p><pre class="settings-json">'+escapeHtml(JSON.stringify(settings,null,2))+'</pre>');
+  res.send(page('Einstellungen',body,req.dashboardSession));
+});
+
 app.get('/protokoll',requireSession,async(req,res)=>{
   const g=req.dashboardSession.guild_id;
   const [actions,personnel,raid]=await Promise.all([
