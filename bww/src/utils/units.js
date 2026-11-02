@@ -65,9 +65,6 @@ async function handleUnitCommand(interaction, config) {
   }
 
   if (command === 'einheit-erstellen') {
-    if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator) && !(config.permissions?.einheiten || []).some(id => interaction.member?.roles?.cache?.has(id))) {
-      return interaction.reply({ content: '❌ Nur Administratoren oder freigeschaltete Einheiten-Verwalter dürfen neue Einheiten erstellen.', ...EPHEMERAL });
-    }
     const type = interaction.options.getString('typ', true);
     const name = cleanName(interaction.options.getString('name', true));
     const responsibilities = (interaction.options.getString('zustaendigkeit') || '').trim().slice(0, 1000);
@@ -80,6 +77,9 @@ async function handleUnitCommand(interaction, config) {
       const expected = type === 'zug' ? 'kompanie' : 'zug';
       if (!parent || parent.unit_type !== expected) return interaction.reply({ content: '❌ Übergeordnete ' + TYPES[expected] + ' nicht gefunden.', ...EPHEMERAL });
     } else if (parentName) return interaction.reply({ content: '❌ Eine Kompanie darf keine übergeordnete Einheit haben.', ...EPHEMERAL });
+    const hasGlobalPermission = interaction.memberPermissions?.has(PermissionFlagsBits.Administrator) || (config.permissions?.einheiten || []).some(id => interaction.member?.roles?.cache?.has(id));
+    const hasParentLeadership = type !== 'kompanie' && parent && await canManage(interaction, config, parent);
+    if (!hasGlobalPermission && !hasParentLeadership) return interaction.reply({ content: '❌ Kompanien dürfen nur Administratoren oder freigeschaltete Einheiten-Verwalter erstellen. Leiter/Stellvertreter dürfen untergeordnete Züge und Gruppen in ihrem Zuständigkeitsbereich erstellen.', ...EPHEMERAL });
     const created = await rows('bww_units', { method: 'POST', body: JSON.stringify({ guild_id: interaction.guildId, unit_type: type, parent_id: parent?.id || null, name, responsibilities, created_by: interaction.user.id }) });
     const unit = created[0];
     await audit(interaction.guildId, unit.id, interaction.user.id, 'unit_created', { type, name, parent: parent?.name || null });
