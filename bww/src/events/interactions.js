@@ -3,9 +3,10 @@ const { isAllowed } = require('../commands');
 const { getGuildSettings, saveGuildSettings } = require('../utils/database');
 const { embedV2, verifyComponents } = require('../utils/embeds');
 const { ticketContainer, createTicket, TICKET_REASONS } = require('../utils/tickets');
-const { loadGiveaways, saveGiveaways, giveawayContainer, startGiveaway, finalizeGiveaway, rerollGiveaway, updateGiveawayMessage } = require('../utils/giveaway');
+const { loadGiveaways, saveGiveaways, giveawayContainer, startGiveaway, finalizeGiveaway, rerollGiveaway, updateGiveawayMessage, recordGiveawayEvent, recordGiveawayEntry, getGiveawayAudit } = require('../utils/giveaway');
 const { getPanel, setPanel, deletePanel, loadPanels, panelContainer, buttonResponseContainer, addPanelMessage } = require('../utils/panels');
 const { createStatusMessage, updateStatusMessage } = require('../utils/status');
+const { handleUnitCommand } = require('../utils/units');
 
 const EPHEMERAL = { flags: MessageFlags.Ephemeral };
 const V2 = MessageFlags.IsComponentsV2;
@@ -69,24 +70,37 @@ module.exports = async (interaction, client) => {
     const list = loadGiveaways(); const g = list.find(x => x.id === id);
     if (action === 'join') {
       if (!g || !g.active) return interaction.reply({ content: '❌ Dieses Giveaway ist bereits beendet.', ...EPHEMERAL });
+      const member = interaction.member;
+      if (g.requiredRoleId && !member?.roles?.cache?.has(g.requiredRoleId)) return interaction.reply({ content: '❌ Für dieses Giveaway benötigst du die erforderliche Rolle.', ...EPHEMERAL });
+      const accountAgeDays = Math.floor((Date.now() - interaction.user.createdTimestamp) / 86400000);
+      const serverAgeDays = member?.joinedTimestamp ? Math.floor((Date.now() - member.joinedTimestamp) / 86400000) : 0;
+      if (accountAgeDays < (g.minAccountAgeDays || 0)) return interaction.reply({ content: '❌ Dein Discord-Konto ist noch nicht alt genug. Erforderlich: ' + g.minAccountAgeDays + ' Tage.', ...EPHEMERAL });
+      if (serverAgeDays < (g.minServerAgeDays || 0)) return interaction.reply({ content: '❌ Du bist noch nicht lange genug auf diesem Server. Erforderlich: ' + g.minServerAgeDays + ' Tage.', ...EPHEMERAL });
       if (g.entries.includes(interaction.user.id)) return interaction.reply({ content: '❌ Du nimmst bereits teil.', ...EPHEMERAL });
-      g.entries.push(interaction.user.id); saveGiveaways(list); await updateGiveawayMessage(client, g);
-      return interaction.reply({ content: '🎉 Du nimmst jetzt am Giveaway teil!', ...EPHEMERAL });
+      const entryCount = 1 + (g.bonusRoleId && member?.roles?.cache?.has(g.bonusRoleId) ? (g.bonusEntries || 0) : 0);
+      g.entries.push(interaction.user.id); g.entryCounts ||= {}; g.entryCounts[interaction.user.id] = entryCount; saveGiveaways(list);
+      await recordGiveawayEntry(g, interaction.user.id, 'join', entryCount);
+      await recordGiveawayEvent(g, interaction.user.id, 'joined', { entryCount, accountAgeDays, serverAgeDays });
+      await updateGiveawayMessage(client, g);
+      return interaction.reply({ content: '🎉 Du nimmst jetzt am Giveaway teil!' + (entryCount > 1 ? ' Du hast ' + entryCount + ' Lose.' : ''), ...EPHEMERAL });
     }
     if (action === 'leave') {
       if (!g || !g.active) return interaction.reply({ content: '❌ Dieses Giveaway ist bereits beendet.', ...EPHEMERAL });
       const idx = g.entries.indexOf(interaction.user.id); if (idx === -1) return interaction.reply({ content: '❌ Du nimmst nicht an diesem Giveaway teil.', ...EPHEMERAL });
-      g.entries.splice(idx, 1); saveGiveaways(list); await updateGiveawayMessage(client, g);
+      g.entries.splice(idx, 1); if (g.entryCounts) delete g.entryCounts[interaction.user.id]; saveGiveaways(list);
+      await recordGiveawayEntry(g, interaction.user.id, 'leave');
+      await recordGiveawayEvent(g, interaction.user.id, 'left');
+      await updateGiveawayMessage(client, g);
       return interaction.reply({ content: '👋 Du hast das Giveaway verlassen.', ...EPHEMERAL });
     }
     if (action === 'end' || action === 'reroll') {
       if (!hasGiveawayManagePermission(interaction, config)) return interaction.reply({ content: '❌ Du darfst das Giveaway nicht verwalten.', ...EPHEMERAL });
       if (action === 'end') {
         if (!g || !g.active) return interaction.reply({ content: '❌ Dieses Giveaway ist bereits beendet.', ...EPHEMERAL });
-        const winners = await finalizeGiveaway(client, g);
+        const winners = await finalizeGiveaway(client, g, interaction.user.id);
         return interaction.reply({ content: winners.length ? `✅ Giveaway beendet. Gewinner: ${winners.map(w => `<@${w}>`).join(', ')}` : '✅ Giveaway beendet. Keine Teilnehmer.', ...EPHEMERAL });
       } else {
-        const res = await rerollGiveaway(client, id);
+        const res = await rerollGiveaway(client, id, interaction.user.id);
         if (!res.ok) return interaction.reply({ content: `❌ ${res.error}`, ...EPHEMERAL });
         const winText = res.winners.length ? res.winners.map(w => `<@${w}>`).join(', ') : 'Keine Teilnehmer übrig 😔';
         return interaction.reply({ content: `🔁 Neu gezogen: ${winText}`, ...EPHEMERAL });
@@ -101,6 +115,7 @@ module.exports = async (interaction, client) => {
   }
   if (!interaction.isChatInputCommand()) return;
   const command = interaction.commandName;
+  if (command.startsWith('einheit-')) return handleUnitCommand(interaction, config);
   if (command.startsWith('setup-')) {
     if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) return interaction.reply({ content: '❌ Nur Administratoren dürfen das Setup ändern.', ...EPHEMERAL });
     if (command === 'setup-welcome') { config.welcome = { enabled: true, channelId: interaction.options.getChannel('channel').id, title: interaction.options.getString('title') || '', message: interaction.options.getString('text', true) }; await saveGuildSettings(interaction.guildId, config, interaction.user.id); return interaction.reply({ content: '✅ Welcome-System gespeichert.', ...EPHEMERAL }); }
@@ -319,15 +334,44 @@ module.exports = async (interaction, client) => {
   if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
   if (command === 'giveaway') {
     const prize = interaction.options.getString('preis', true); const winners = Math.max(1, interaction.options.getInteger('gewinner') || 1); const durationMs = interaction.options.getInteger('dauer') * 1000 || 60000;
-    try { await startGiveaway(interaction.channel, prize, durationMs, winners); return interaction.reply({ content: '✅ Giveaway gestartet!', ...EPHEMERAL }); } catch (err) { return interaction.reply({ content: `❌ Giveaway fehlgeschlagen: ${err.message}`, ...EPHEMERAL }); }
+    try {
+      const requiredRole = interaction.options.getRole('pflichtrolle');
+      const bonusRole = interaction.options.getRole('bonusrolle');
+      const bonusEntries = interaction.options.getInteger('bonuslose') || 0;
+      if (bonusEntries > 0 && !bonusRole) return interaction.reply({ content: '❌ Für Bonuslose musst du auch eine Bonusrolle auswählen.', ...EPHEMERAL });
+      const created = await startGiveaway(interaction.channel, prize, durationMs, winners, {
+        guildId: interaction.guildId, createdBy: interaction.user.id,
+        conditions: interaction.options.getString('bedingungen') || '',
+        requiredRoleId: requiredRole?.id || '',
+        minAccountAgeDays: interaction.options.getInteger('kontoalter') || 0,
+        minServerAgeDays: interaction.options.getInteger('serveralter') || 0,
+        bonusRoleId: bonusRole?.id || '', bonusEntries
+      });
+      return interaction.reply({ content: '✅ Giveaway gestartet! ID: `' + created.id + '`', ...EPHEMERAL });
+    } catch (err) { return interaction.reply({ content: `❌ Giveaway fehlgeschlagen: ${err.message}`, ...EPHEMERAL }); }
   }
   if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
+  if (command === 'giveaway-protokoll') {
+    if (!hasGiveawayManagePermission(interaction, config)) return interaction.reply({ content: '❌ Du darfst das Giveaway-Protokoll nicht einsehen.', ...EPHEMERAL });
+    const id = interaction.options.getString('id', true).trim();
+    const events = await getGiveawayAudit(interaction.guildId, id);
+    if (!events.length) return interaction.reply({ content: '📭 Für diese Giveaway-ID wurde kein Protokoll gefunden.', ...EPHEMERAL });
+    const labels = { created: 'Erstellt', joined: 'Teilnahme', left: 'Teilnahme zurückgezogen', ended: 'Beendet', reroll: 'Neuziehung' };
+    const lines = events.map(event => {
+      const when = Math.floor(new Date(event.created_at).getTime() / 1000);
+      const actor = event.actor_id ? '<@' + event.actor_id + '>' : 'System';
+      const detail = event.event_type === 'joined' ? ' · Lose: ' + (event.details?.entryCount || 1) :
+        event.event_type === 'ended' || event.event_type === 'reroll' ? ' · Gewinner: ' + ((event.details?.winners || []).map(id => '<@' + id + '>').join(', ') || 'Keine') : '';
+      return '• <t:' + when + ':f> — **' + (labels[event.event_type] || event.event_type) + '** — ' + actor + detail;
+    });
+    return interaction.reply({ content: ('## Giveaway-Protokoll · ' + id + '\n' + lines.join('\n')).slice(0, 1900), ...EPHEMERAL });
+  }
   if (command === 'verify') {
     try { config.verify.channelId = interaction.channelId; config.verify.enabled = true; await saveGuildSettings(interaction.guildId, config, interaction.user.id); await interaction.channel.send({ components: [verifyComponents(config)], flags: V2, allowedMentions: { parse: [] } }); return interaction.reply({ content: '✅ Verify-Panel gesendet.', ...EPHEMERAL }); } catch (err) { return interaction.reply({ content: `❌ Verify-Panel fehlgeschlagen: ${err.message}`, ...EPHEMERAL }); }
   }
   if (command === 'setup') {
     const container = new ContainerBuilder().setAccentColor(0x2F3136);
-    container.addTextDisplayComponents(new TextDisplayBuilder().setContent('## BWW Setup\n`/setup-welcome` [channel] [text] [title?] → Welcome\n`/setup-verify` → Verify\n`/setup-ticket` [kategorie] [rolle] → Ticket\n`/setup-status` [channel] → Status-Embed\n`/setup-permission` → Command-Berechtigungen\n`/restart` → Bot neu starten\n`/wartung` → Wartung an/aus\n`/panel-create` → Custom Panel (10 Buttons) speichern+senden\n`/panel-add-button` → Button hinzufügen\n`/panel-send`/`/panel-delete`/`/panel-list` → Panels verwalten\n`/nachricht-wiederholen` → Nachricht regelmäßig senden\n`/wiederholung-stoppen`/`/wiederholung-liste` → Wiederholungen verwalten\n`/embed` → Embed mit HEX-Farbe und Bild-Upload\n`/kick`, `/ban`, `/unban`, `/timeout` → Moderation\n`/giverole`, `/removerole` → Rollen'));
+    container.addTextDisplayComponents(new TextDisplayBuilder().setContent('## BWW Setup\n`/setup-welcome` [channel] [text] [title?] → Welcome\n`/setup-verify` → Verify\n`/setup-ticket` [kategorie] [rolle] → Ticket\n`/setup-status` [channel] → Status-Embed\n`/setup-permission` → Command-Berechtigungen\n`/restart` → Bot neu starten\n`/wartung` → Wartung an/aus\n`/panel-create` → Custom Panel (10 Buttons) speichern+senden\n`/panel-add-button` → Button hinzufügen\n`/panel-send`/`/panel-delete`/`/panel-list` → Panels verwalten\n`/nachricht-wiederholen` → Nachricht regelmäßig senden\n`/wiederholung-stoppen`/`/wiederholung-liste` → Wiederholungen verwalten\n`/embed` → Embed mit HEX-Farbe und Bild-Upload\n`/kick`, `/ban`, `/unban`, `/timeout` → Moderation\n`/giverole`, `/removerole` → Rollen\n`/einheit-erstellen` → Kompanien, Züge und Gruppen\n`/einheit-liste`, `/einheit-info` → Einheiten anzeigen\n`/einheit-mitglied`, `/einheit-entfernen` → Personalverwaltung'));
     container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true));
     container.addTextDisplayComponents(new TextDisplayBuilder().setContent('**Welcome-Platzhalter:**\n`{user}` → Ping\n`{username}` → Name\n`{displayname}` → Server-Nickname\n`{server}` → Servername\n`{id}` → User-ID\n`{count}` → Mitgliederzahl\n\nDer Avatar des Users erscheint automatisch oben rechts.'));
     return interaction.reply({ components: [container], flags: EPHEMERAL_V2 });

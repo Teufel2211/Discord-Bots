@@ -130,4 +130,5 @@ module.exports = {
   getGuildSettings,
   saveGuildSettings,
   patchGuildSettings,
+  supabaseRequest,
 };

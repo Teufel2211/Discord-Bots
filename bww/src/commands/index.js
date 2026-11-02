@@ -58,10 +58,16 @@ const commands = [
   { name: 'verify', description: 'Sendet das konfigurierte Verify-System.' },
 
   { name: 'ticket', description: 'Sendet das Ticket-Panel.' },
-  { name: 'giveaway', description: 'Startet ein Giveaway.', options: [
+  { name: 'giveaway', description: 'Startet ein Giveaway mit Teilnahmebedingungen.', options: [
     { name: 'preis', description: 'Was wird verlost?', type: 3, required: true },
-    { name: 'dauer', description: 'Dauer in Sekunden', type: 4, required: true },
-    { name: 'gewinner', description: 'Anzahl Gewinner (Standard: 1)', type: 4, required: false }
+    { name: 'dauer', description: 'Dauer in Sekunden', type: 4, required: true, min_value: 60, max_value: 2592000 },
+    { name: 'gewinner', description: 'Anzahl Gewinner (Standard: 1)', type: 4, required: false, min_value: 1, max_value: 100 },
+    { name: 'bedingungen', description: 'Zusätzliche Teilnahmebedingungen', type: 3, required: false },
+    { name: 'pflichtrolle', description: 'Rolle, die zur Teilnahme benötigt wird', type: 8, required: false },
+    { name: 'kontoalter', description: 'Mindestalter des Discord-Kontos in Tagen', type: 4, required: false, min_value: 0, max_value: 3650 },
+    { name: 'serveralter', description: 'Mindestzeit auf dem Server in Tagen', type: 4, required: false, min_value: 0, max_value: 3650 },
+    { name: 'bonusrolle', description: 'Rolle für zusätzliche Lose', type: 8, required: false },
+    { name: 'bonuslose', description: 'Zusätzliche Lose für Bonusrolle (max. 20)', type: 4, required: false, min_value: 1, max_value: 20 }
   ]},
   { name: 'panel-create', description: 'Erstellt und sendet ein Custom-Panel mit bis zu 10 Buttons (speichern+senden).', options: panelCreateOptions },
   { name: 'panel-send', description: 'Sendet ein gespeichertes Panel.', options: [{ name: 'name', description: 'Panel-Name', type: 3, required: true }]},
@@ -120,19 +126,46 @@ const commands = [
   { name: 'setup-permission', description: 'Rollenberechtigung f\u00FCr Commands setzen.', options: [
     { name: 'command', description: 'Command', type: 3, required: true, choices: [
       { name: 'nachricht', value: 'nachricht' }, { name: 'embed', value: 'embed' }, { name: 'setup', value: 'setup' }, { name: 'verify', value: 'verify' },
-      { name: 'ticket', value: 'ticket' }, { name: 'giveaway', value: 'giveaway' }, { name: 'panel-create', value: 'panel-create' }, { name: 'panel-send', value: 'panel-send' }, { name: 'panel-delete', value: 'panel-delete' }, { name: 'panel-list', value: 'panel-list' }, { name: 'panel-add-button', value: 'panel-add-button' }, { name: 'umfrage', value: 'umfrage' }, { name: 'setup-status', value: 'setup-status' }, { name: 'wartung', value: 'wartung' }, { name: 'restart', value: 'restart' }, { name: 'nachricht-wiederholen', value: 'nachricht-wiederholen' }, { name: 'wiederholung-stoppen', value: 'wiederholung-stoppen' }, { name: 'wiederholung-liste', value: 'wiederholung-liste' },
+      { name: 'ticket', value: 'ticket' }, { name: 'giveaway', value: 'giveaway' }, { name: 'einheiten', value: 'einheiten' }, { name: 'panel-create', value: 'panel-create' }, { name: 'panel-send', value: 'panel-send' }, { name: 'panel-delete', value: 'panel-delete' }, { name: 'panel-list', value: 'panel-list' }, { name: 'panel-add-button', value: 'panel-add-button' }, { name: 'umfrage', value: 'umfrage' }, { name: 'setup-status', value: 'setup-status' }, { name: 'wartung', value: 'wartung' }, { name: 'restart', value: 'restart' }, { name: 'nachricht-wiederholen', value: 'nachricht-wiederholen' }, { name: 'wiederholung-stoppen', value: 'wiederholung-stoppen' }, { name: 'wiederholung-liste', value: 'wiederholung-liste' },
       { name: 'kick', value: 'kick' }, { name: 'ban', value: 'ban' }, { name: 'unban', value: 'unban' }, { name: 'timeout', value: 'timeout' },
       { name: 'giverole', value: 'giverole' }, { name: 'removerole', value: 'removerole' }
     ]},
     { name: 'role', description: 'Rolle', type: 8, required: true },
     { name: 'erlauben', description: 'true = erlauben, false = entfernen', type: 5, required: true }
-  ]}
+  ]},
+
+  { name: 'giveaway-protokoll', description: 'Zeigt das Protokoll eines Giveaways.', options: [{ name: 'id', description: 'Giveaway-ID aus der Startmeldung', type: 3, required: true }]},
+  { name: 'einheit-erstellen', description: 'Erstellt eine Kompanie, einen Zug oder eine Gruppe.', options: [
+    { name: 'typ', description: 'Einheitentyp', type: 3, required: true, choices: [{ name: 'Kompanie', value: 'kompanie' }, { name: 'Zug', value: 'zug' }, { name: 'Gruppe', value: 'gruppe' }] },
+    { name: 'name', description: 'Name der Einheit', type: 3, required: true },
+    { name: 'uebergeordnet', description: 'Kompanie für Zug bzw. Zug für Gruppe', type: 3, required: false },
+    { name: 'zustaendigkeit', description: 'Aufgaben und Zuständigkeiten', type: 3, required: false }
+  ]},
+  { name: 'einheit-liste', description: 'Zeigt alle Kompanien, Züge und Gruppen.' },
+  { name: 'einheit-info', description: 'Zeigt Mitglieder, Führung und Zuständigkeiten einer Einheit.', options: [{ name: 'name', description: 'Name der Einheit', type: 3, required: true }] },
+  { name: 'einheit-bearbeiten', description: 'Ändert Name oder Zuständigkeiten einer Einheit.', options: [
+    { name: 'name', description: 'Aktueller Name der Einheit', type: 3, required: true },
+    { name: 'neuer_name', description: 'Neuer Name', type: 3, required: false },
+    { name: 'zustaendigkeit', description: 'Neue Zuständigkeiten', type: 3, required: false }
+  ]},
+  { name: 'einheit-mitglied', description: 'Weist einem Mitglied eine Position in der Einheit zu.', options: [
+    { name: 'name', description: 'Name der Einheit', type: 3, required: true },
+    { name: 'user', description: 'Discord-Mitglied', type: 6, required: true },
+    { name: 'position', description: 'Mitglied, Leiter oder Stellvertreter', type: 3, required: true, choices: [{ name: 'Mitglied', value: 'mitglied' }, { name: 'Leiter', value: 'leiter' }, { name: 'Stellvertreter', value: 'stellvertreter' }] }
+  ]},
+  { name: 'einheit-entfernen', description: 'Entfernt ein Mitglied aus einer Einheit.', options: [
+    { name: 'name', description: 'Name der Einheit', type: 3, required: true },
+    { name: 'user', description: 'Discord-Mitglied', type: 6, required: true }
+  ]},
+  { name: 'einheit-loeschen', description: 'Löscht eine leere untergeordnete Einheit.', options: [{ name: 'name', description: 'Name der Einheit', type: 3, required: true }]},
+
 ];
 
 function isAllowed(interaction, config) {
   if (interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) return true;
-  const key = interaction.commandName;
-  if (!key) return false;
+  const commandName = interaction.commandName;
+  if (!commandName) return false;
+  const key = commandName === 'giveaway-protokoll' ? 'giveaway' : commandName;
   const roles = config.permissions[key] || [];
   const memberRoles = interaction.member?.roles?.cache;
   if (!memberRoles) return false;
