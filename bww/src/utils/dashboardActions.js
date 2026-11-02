@@ -2,6 +2,7 @@ const crypto = require('node:crypto');
 const { supabaseRequest } = require('./database');
 const { embedV2 } = require('./embeds');
 const { lockdownGuild, restoreGuild } = require('./raidProtection');
+const { openDmThread } = require('./dmRelay');
 
 function hashCode(value) { return crypto.createHash('sha256').update(String(value)).digest('hex'); }
 async function issueDashboardCode(guildId, userId) {
@@ -43,6 +44,11 @@ async function processAction(client, action) {
     case 'raid_restore':
       if (!await restoreGuild(guild, action.created_by)) throw new Error('Kein aktiver Lockdown gefunden.');
       return;
+    case 'dm_thread': {
+      const user = await client.users.fetch(p.user_id);
+      await openDmThread(guild.id, action.created_by, user, p.content);
+      return;
+    }
     case 'dm_send': {
       const user = await client.users.fetch(p.user_id);
       await user.send({ content: String(p.content || '').slice(0, 1800), allowedMentions: { parse: [] } });
