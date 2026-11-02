@@ -171,10 +171,17 @@ async function recordDraw(g, winners, drawType) {
   await syncGiveawayRecord(g);
 }
 
+
+async function getGiveawayAudit(guildId, id) {
+  if (!guildId || !id) return [];
+  const response = await supabaseRequest('bww_giveaway_audit_events?select=event_type,actor_id,details,created_at&guild_id=eq.' + encodeURIComponent(guildId) + '&giveaway_id=eq.' + encodeURIComponent(id) + '&order=created_at.desc&limit=50', { headers: { Prefer: 'return=representation' } });
+  return response ? response.json() : [];
+}
+
 function startGiveawayLoop(client) {
   setTimeout(async () => {
     try { const list = loadGiveaways().filter(g => g.active); for (const g of list) { if (g.endTime <= Date.now()) await finalizeGiveaway(client, g); } } catch (e) {} finally { startGiveawayLoop(client); }
   }, 10000);
 }
 
-module.exports = { loadGiveaways, saveGiveaways, giveawayContainer, giveawayMessage, drawWinners, finalizeGiveaway, rerollGiveaway, updateGiveawayMessage, startGiveawayLoop, recordGiveawayEvent, recordGiveawayEntry, file };
+module.exports = { loadGiveaways, saveGiveaways, giveawayContainer, giveawayMessage, drawWinners, finalizeGiveaway, rerollGiveaway, updateGiveawayMessage, startGiveawayLoop, recordGiveawayEvent, recordGiveawayEntry, getGiveawayAudit, file };
