@@ -256,7 +256,12 @@ app.post('/embeds/edit',requireSession,async(req,res)=>{
   res.redirect('/embeds');
 });
 
-app.get('/dm',requireSession,(req,res)=>res.send(page('DM-System',card('Nachricht über den Bot senden',form('/dm/send',field('Discord User-ID','user_id','','text',true)+textarea('Nachricht','content','',true)+button('DM senden'))+ '<p class="muted">Antworten werden an den BWW-Bot und anschließend an den zuständigen Mitarbeiter weitergeleitet, sofern der Dialog über /dm-senden gestartet wurde.</p>'),req.dashboardSession)));
+app.get('/dm',requireSession,async(req,res)=>{const threads=await db('bww_dm_threads?select=id,requester_id,recipient_id,status,last_message_at,created_at&guild_id=eq.'+req.dashboardSession.guild_id+'&status=eq.open&order=last_message_at.desc&limit=50',{headers:{Prefer:'return=representation'}});const rows=threads.map(t=>[escapeHtml(t.requester_id),escapeHtml(t.recipient_id),escapeHtml(new Date(t.last_message_at).toLocaleString('de-DE')),form('/dm/close',field('Dialog-ID','id',t.id,'hidden')+button('Dialog schließen','danger'))]);const body=card('Nachricht über den Bot senden',form('/dm/send',field('Discord User-ID','user_id','','text',true)+textarea('Nachricht','content','',true)+button('DM senden'))+'<p class="muted">Antworten des Empfängers werden an den Mitarbeiter weitergeleitet, der den Dialog gestartet hat.</p>')+card('Offene DM-Dialoge',table(['Mitarbeiter','Empfänger','Letzte Nachricht','Aktion'],rows));res.send(page('DM-System',body,req.dashboardSession));});
+app.post('/dm/close',requireSession,async(req,res)=>{
+  const id=String(req.body.id||'');
+  await db('bww_dm_threads?id=eq.'+id+'&guild_id=eq.'+req.dashboardSession.guild_id+'&status=eq.open',{method:'PATCH',body:JSON.stringify({status:'closed',closed_at:new Date().toISOString()})});
+  res.redirect('/dm');
+});
 app.post('/dm/send',requireSession,async(req,res)=>{
   const userId=String(req.body.user_id||''),content=String(req.body.content||'').trim().slice(0,1800);
   if(!/^\d{15,22}$/.test(userId)||!content)return res.status(400).send('Nutzer-ID oder Nachricht ungültig.');
