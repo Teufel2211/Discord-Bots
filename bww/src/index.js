@@ -14,7 +14,11 @@ const interactions = require('./events/interactions');
 const { startGiveawayLoop } = require('./utils/giveaway');
 const { startRecurringMessageLoop } = require('./utils/recurring');
 const { updateStatusMessage, ensureStatusMessage, formatUptime } = require('./utils/status');
-const { getGuildSettings } = require('./utils/database');
+const { getGuildSettings, syncBotStatus, syncGuilds, markOffline } = require('./utils/database');
+const { processDashboardActions } = require('./utils/dashboardActions');
+const { handleMemberJoin } = require('./utils/raidProtection');
+const { relayDmReply } = require('./utils/dmRelay');
+const { recordMessageActivity } = require('./utils/personnel');
 
 const token = process.env.DISCORD_TOKEN || '';
 if (!token) {
@@ -24,8 +28,8 @@ if (!token) {
 console.log('[BWW] Token geladen.');
 
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],
-  partials: [Partials.GuildMember],
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages, GatewayIntentBits.DirectMessages],
+  partials: [Partials.GuildMember, Partials.Channel],
 });
 
 
@@ -41,6 +45,12 @@ client.once(Events.ClientReady, async (bot) => {
 
   startGiveawayLoop(client);
   startRecurringMessageLoop(client);
+  const syncDashboardStatus = () => Promise.all([syncBotStatus(client, 'online'), syncGuilds(client)]).catch((err) => console.error('[BWW Dashboard] Status-Sync fehlgeschlagen:', err.message));
+  await syncDashboardStatus();
+  setInterval(syncDashboardStatus, 30000);
+  const processActions = () => processDashboardActions(client).catch((err) => console.error('[BWW Dashboard] Aktionsverarbeitung fehlgeschlagen:', err.message));
+  await processActions();
+  setInterval(processActions, 5000);
 
   for (const guild of client.guilds.cache.values()) {
     try {
@@ -76,6 +86,15 @@ client.once(Events.ClientReady, async (bot) => {
 
 client.on(Events.GuildMemberAdd, (member) => {
   Promise.resolve(welcome(member)).catch((err) => console.error('Welcome Fehler:', err.message));
+  Promise.resolve(handleMemberJoin(member, client)).catch((err) => console.error('[BWW Raid] Join-Prüfung fehlgeschlagen:', err.message));
+});
+
+client.on(Events.MessageCreate, (message) => {
+  if (!message.guild) {
+    Promise.resolve(relayDmReply(message, client)).catch((err) => console.error('[BWW DM] Weiterleitung fehlgeschlagen:', err.message));
+  } else if (!message.author.bot) {
+    Promise.resolve(recordMessageActivity(message.guild.id, message.author.id)).catch((err) => console.error('[BWW Personalakte] Aktivität fehlgeschlagen:', err.message));
+  }
 });
 
 client.on(Events.InteractionCreate, (interaction) => {
@@ -88,6 +107,7 @@ client.on(Events.InteractionCreate, (interaction) => {
 });
 
 async function shutdown(signal) {
+  try { await markOffline(client); } catch (err) { console.error('[BWW Dashboard] Offline-Status fehlgeschlagen:', err.message); }
   for (const guild of client.guilds.cache.values()) { try { await updateStatusMessage(client, guild.id, 'offline'); } catch {} }
   process.exit(signal === 'SIGINT' ? 130 : 143);
 }
