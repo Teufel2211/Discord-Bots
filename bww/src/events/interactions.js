@@ -3,7 +3,7 @@ const { isAllowed } = require('../commands');
 const { getGuildSettings, saveGuildSettings } = require('../utils/database');
 const { embedV2, verifyComponents } = require('../utils/embeds');
 const { ticketContainer, createTicket, TICKET_REASONS } = require('../utils/tickets');
-const { loadGiveaways, saveGiveaways, giveawayContainer, startGiveaway, finalizeGiveaway, rerollGiveaway, updateGiveawayMessage, recordGiveawayEvent, recordGiveawayEntry } = require('../utils/giveaway');
+const { loadGiveaways, saveGiveaways, giveawayContainer, startGiveaway, finalizeGiveaway, rerollGiveaway, updateGiveawayMessage, recordGiveawayEvent, recordGiveawayEntry, getGiveawayAudit } = require('../utils/giveaway');
 const { getPanel, setPanel, deletePanel, loadPanels, panelContainer, buttonResponseContainer, addPanelMessage } = require('../utils/panels');
 const { createStatusMessage, updateStatusMessage } = require('../utils/status');
 const { handleUnitCommand } = require('../utils/units');
@@ -351,6 +351,21 @@ module.exports = async (interaction, client) => {
     } catch (err) { return interaction.reply({ content: `❌ Giveaway fehlgeschlagen: ${err.message}`, ...EPHEMERAL }); }
   }
   if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
+  if (command === 'giveaway-protokoll') {
+    if (!hasGiveawayManagePermission(interaction, config)) return interaction.reply({ content: '❌ Du darfst das Giveaway-Protokoll nicht einsehen.', ...EPHEMERAL });
+    const id = interaction.options.getString('id', true).trim();
+    const events = await getGiveawayAudit(interaction.guildId, id);
+    if (!events.length) return interaction.reply({ content: '📭 Für diese Giveaway-ID wurde kein Protokoll gefunden.', ...EPHEMERAL });
+    const labels = { created: 'Erstellt', joined: 'Teilnahme', left: 'Teilnahme zurückgezogen', ended: 'Beendet', reroll: 'Neuziehung' };
+    const lines = events.map(event => {
+      const when = Math.floor(new Date(event.created_at).getTime() / 1000);
+      const actor = event.actor_id ? '<@' + event.actor_id + '>' : 'System';
+      const detail = event.event_type === 'joined' ? ' · Lose: ' + (event.details?.entryCount || 1) :
+        event.event_type === 'ended' || event.event_type === 'reroll' ? ' · Gewinner: ' + ((event.details?.winners || []).map(id => '<@' + id + '>').join(', ') || 'Keine') : '';
+      return '• <t:' + when + ':f> — **' + (labels[event.event_type] || event.event_type) + '** — ' + actor + detail;
+    });
+    return interaction.reply({ content: ('## Giveaway-Protokoll · ' + id + '\n' + lines.join('\n')).slice(0, 1900), ...EPHEMERAL });
+  }
   if (command === 'verify') {
     try { config.verify.channelId = interaction.channelId; config.verify.enabled = true; await saveGuildSettings(interaction.guildId, config, interaction.user.id); await interaction.channel.send({ components: [verifyComponents(config)], flags: V2, allowedMentions: { parse: [] } }); return interaction.reply({ content: '✅ Verify-Panel gesendet.', ...EPHEMERAL }); } catch (err) { return interaction.reply({ content: `❌ Verify-Panel fehlgeschlagen: ${err.message}`, ...EPHEMERAL }); }
   }
