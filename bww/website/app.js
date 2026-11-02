@@ -106,7 +106,7 @@ async function audit(guildId, userId, actorId, eventType, oldValue, newValue, de
 
 app.get('/health', (_req, res) => res.json({ ok: true }));
 app.get('/', (_req, res) => res.redirect('/dashboard'));
-app.get('/login', (_req, res) => res.send('<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>BWW Login</title><link rel="stylesheet" href="/style.css"></head><body class="login-page"><main class="login"><div class="brand"><span class="brand-mark">B</span><div><strong>BWW</strong><small>Waldstädt · Verwaltung</small></div></div><span class="eyebrow">SICHERER ZUGANG</span><h1>Dashboard Login</h1><p>Erstelle zuerst im Discord mit <code>/dashboard-code</code> einen einmaligen Login-Code.</p><form method="post" action="/login"><label>Einmalcode<input name="code" maxlength="8" minlength="8" autocomplete="one-time-code" required autofocus></label><button class="button" type="submit">Anmelden</button></form><small class="muted">Der Code ist einmalig und nur 5 Minuten gültig.</small></main></body></html>'));
+app.get('/login', (_req, res) => res.send('<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>BWW Login</title><link rel="stylesheet" href="/style.css"></head><body class="login-page"><main class="login"><div class="brand"><span class="brand-mark">B</span><div><strong>BWW</strong><small>Waldstädt · Verwaltung</small></div></div><span class="eyebrow">SICHERER ZUGANG</span><h1>Dashboard Login</h1><p>Erstelle zuerst im Discord mit <code>/dashboard-code</code> einen einmaligen Login-Code.</p><form method="post" action="/login"><label>Einmalcode<input name="code" maxlength="12" minlength="12" autocomplete="one-time-code" required autofocus></label><button class="button" type="submit">Anmelden</button></form><small class="muted">Der Code ist einmalig und nur 5 Minuten gültig.</small></main></body></html>'));
 app.post('/login', async (req, res) => {
   try {
     const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown').split(',')[0];
@@ -115,7 +115,7 @@ app.post('/login', async (req, res) => {
     if (state.count >= 8) return res.status(429).send('Zu viele Login-Versuche. Bitte später erneut versuchen.');
     state.count += 1; loginAttempts.set(ip, state);
     const code = String(req.body.code || '').trim().toUpperCase();
-    if (!/^[A-F0-9]{8}$/.test(code)) return res.status(400).send('Ungültiger Login-Code.');
+    if (!/^[A-F0-9]{12}$/.test(code)) return res.status(400).send('Ungültiger Login-Code.');
     const rows = await db('bww_dashboard_logins?code_hash=eq.' + hash(code) + '&used_at=is.null&expires_at=gt.' + encodeURIComponent(new Date().toISOString()), { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ used_at: new Date().toISOString() }) });
     const login = rows?.[0];
     if (!login) return res.status(401).send('Der Code ist ungültig, abgelaufen oder wurde bereits verwendet. <a href="/login">Zurück</a>');
