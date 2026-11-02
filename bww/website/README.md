@@ -4,7 +4,7 @@ Das Dashboard läuft als Vercel-Serverless-App unter `bww/website` und verwendet
 
 ## Login
 1. Im BWW-Discord-Server als Administrator `/dashboard-code` ausführen.
-2. Den einmaligen 8-stelligen Code auf der Dashboard-Loginseite eingeben.
+2. Den einmaligen 12-stelligen Code auf der Dashboard-Loginseite eingeben.
 3. Der Code verfällt nach fünf Minuten und kann nur einmal verwendet werden. Die Sitzung läuft nach sieben Tagen ab.
 
 ## Benötigte serverseitige Umgebungsvariablen
