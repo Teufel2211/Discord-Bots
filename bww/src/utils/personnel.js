@@ -25,9 +25,25 @@ async function getEvents(guildId, userId) {
   const response = await supabaseRequest('bww_personalakte_events?select=*&guild_id=eq.' + guildId + '&user_id=eq.' + userId + '&order=created_at.desc&limit=50', { headers: { Prefer: 'return=representation' } });
   return response.json();
 }
+
+async function recordMessageActivity(guildId, userId) {
+  const record = await getRecord(guildId, userId);
+  if (!record) return false;
+  const now = Date.now();
+  const last = record.last_activity_at ? new Date(record.last_activity_at).getTime() : 0;
+  if (now - last < 30 * 60 * 1000) return false;
+  const timestamp = new Date(now).toISOString();
+  await supabaseRequest('bww_personalakten?guild_id=eq.' + guildId + '&user_id=eq.' + userId, {
+    method: 'PATCH',
+    body: JSON.stringify({ last_activity_at: timestamp, updated_at: timestamp })
+  });
+  await addEvent(guildId, userId, null, 'activity', null, 'Serveraktivität erfasst', { source: 'discord_message', timestamp });
+  return true;
+}
+
 async function getUnitName(unitId, guildId) {
   if (!unitId) return 'Keine Einheit';
   const units = await listUnits(guildId);
   return units.find((unit) => unit.id === unitId)?.name || 'Unbekannte Einheit';
 }
-module.exports = { getRecord, ensureRecord, updateRecord, addEvent, getEvents, getUnitName };
+module.exports = { getRecord, ensureRecord, updateRecord, addEvent, getEvents, getUnitName, recordMessageActivity };
