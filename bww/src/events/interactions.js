@@ -78,7 +78,7 @@ module.exports = async (interaction, client) => {
       if (serverAgeDays < (g.minServerAgeDays || 0)) return interaction.reply({ content: '❌ Du bist noch nicht lange genug auf diesem Server. Erforderlich: ' + g.minServerAgeDays + ' Tage.', ...EPHEMERAL });
       if (g.entries.includes(interaction.user.id)) return interaction.reply({ content: '❌ Du nimmst bereits teil.', ...EPHEMERAL });
       const entryCount = 1 + (g.bonusRoleId && member?.roles?.cache?.has(g.bonusRoleId) ? (g.bonusEntries || 0) : 0);
-      g.entries.push(interaction.user.id); saveGiveaways(list);
+      g.entries.push(interaction.user.id); g.entryCounts ||= {}; g.entryCounts[interaction.user.id] = entryCount; saveGiveaways(list);
       await recordGiveawayEntry(g, interaction.user.id, 'join', entryCount);
       await recordGiveawayEvent(g, interaction.user.id, 'joined', { entryCount, accountAgeDays, serverAgeDays });
       await updateGiveawayMessage(client, g);
@@ -87,7 +87,7 @@ module.exports = async (interaction, client) => {
     if (action === 'leave') {
       if (!g || !g.active) return interaction.reply({ content: '❌ Dieses Giveaway ist bereits beendet.', ...EPHEMERAL });
       const idx = g.entries.indexOf(interaction.user.id); if (idx === -1) return interaction.reply({ content: '❌ Du nimmst nicht an diesem Giveaway teil.', ...EPHEMERAL });
-      g.entries.splice(idx, 1); saveGiveaways(list);
+      g.entries.splice(idx, 1); if (g.entryCounts) delete g.entryCounts[interaction.user.id]; saveGiveaways(list);
       await recordGiveawayEntry(g, interaction.user.id, 'leave');
       await recordGiveawayEvent(g, interaction.user.id, 'left');
       await updateGiveawayMessage(client, g);
@@ -97,10 +97,10 @@ module.exports = async (interaction, client) => {
       if (!hasGiveawayManagePermission(interaction, config)) return interaction.reply({ content: '❌ Du darfst das Giveaway nicht verwalten.', ...EPHEMERAL });
       if (action === 'end') {
         if (!g || !g.active) return interaction.reply({ content: '❌ Dieses Giveaway ist bereits beendet.', ...EPHEMERAL });
-        const winners = await finalizeGiveaway(client, g);
+        const winners = await finalizeGiveaway(client, g, interaction.user.id);
         return interaction.reply({ content: winners.length ? `✅ Giveaway beendet. Gewinner: ${winners.map(w => `<@${w}>`).join(', ')}` : '✅ Giveaway beendet. Keine Teilnehmer.', ...EPHEMERAL });
       } else {
-        const res = await rerollGiveaway(client, id);
+        const res = await rerollGiveaway(client, id, interaction.user.id);
         if (!res.ok) return interaction.reply({ content: `❌ ${res.error}`, ...EPHEMERAL });
         const winText = res.winners.length ? res.winners.map(w => `<@${w}>`).join(', ') : 'Keine Teilnehmer übrig 😔';
         return interaction.reply({ content: `🔁 Neu gezogen: ${winText}`, ...EPHEMERAL });
