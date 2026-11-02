@@ -1,12 +1,16 @@
 const { ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, SeparatorSpacingSize, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits, MessageFlags } = require('discord.js');
 const { isAllowed } = require('../commands');
-const { getGuildSettings, saveGuildSettings } = require('../utils/database');
+const { getGuildSettings, saveGuildSettings, supabaseRequest } = require('../utils/database');
 const { embedV2, verifyComponents } = require('../utils/embeds');
 const { ticketContainer, createTicket, TICKET_REASONS } = require('../utils/tickets');
 const { loadGiveaways, saveGiveaways, giveawayContainer, startGiveaway, finalizeGiveaway, rerollGiveaway, updateGiveawayMessage, recordGiveawayEvent, recordGiveawayEntry, getGiveawayAudit } = require('../utils/giveaway');
 const { getPanel, setPanel, deletePanel, loadPanels, panelContainer, buttonResponseContainer, addPanelMessage } = require('../utils/panels');
 const { createStatusMessage, updateStatusMessage } = require('../utils/status');
-const { handleUnitCommand } = require('../utils/units');
+const { handleUnitCommand, listUnits } = require('../utils/units');
+const { issueDashboardCode } = require('../utils/dashboardActions');
+const { getRaidSettings, saveRaidSettings, lockdownGuild, restoreGuild } = require('../utils/raidProtection');
+const { openDmThread } = require('../utils/dmRelay');
+const personnel = require('../utils/personnel');
 
 const EPHEMERAL = { flags: MessageFlags.Ephemeral };
 const V2 = MessageFlags.IsComponentsV2;
@@ -309,8 +313,9 @@ module.exports = async (interaction, client) => {
     const footer = interaction.options.getString('footer') || '';
     const container = embedV2({ title, description: text, image, thumbnail, color, footer });
     try {
-      await interaction.channel.send({ components: [container], flags: V2, allowedMentions: { parse: [] } });
-      return interaction.reply({ content: '✅ Components-V2-Embed gesendet.', ...EPHEMERAL });
+      const message = await interaction.channel.send({ components: [container], flags: V2, allowedMentions: { parse: [] } });
+      await supabaseRequest('bww_embed_messages', { method: 'POST', body: JSON.stringify({ guild_id: interaction.guildId, channel_id: interaction.channelId, message_id: message.id, payload: { title, description: text, image, thumbnail, color, footer }, created_by: interaction.user.id }) });
+      return interaction.reply({ content: '✅ Components-V2-Embed gesendet und für spätere Bearbeitung gespeichert. Nachrichten-ID: `' + message.id + '`', ...EPHEMERAL });
     } catch (err) {
       return interaction.reply({ content: `❌ Components-V2-Embed konnte nicht gesendet werden: ${err.message}`, ...EPHEMERAL });
     }
@@ -328,6 +333,101 @@ module.exports = async (interaction, client) => {
     }
   }
   if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
+  if (command === 'dashboard-code') {
+    if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) return interaction.reply({ content: '❌ Nur Server-Administratoren dürfen Dashboard-Codes erstellen.', ...EPHEMERAL });
+    const code = await issueDashboardCode(interaction.guildId, interaction.user.id);
+    return interaction.reply({ content: '**Dashboard-Login-Code**\n\n`' + code + '`\n\nDer Code ist einmalig und 5 Minuten gültig. Öffne das BWW-Dashboard und gib ihn dort ein. Teile ihn mit niemandem.', ...EPHEMERAL });
+  }
+  if (command === 'raid-schutz') {
+    const current = await getRaidSettings(interaction.guildId);
+    const next = { ...current, enabled: interaction.options.getBoolean('aktiv', true), joinThreshold: interaction.options.getInteger('beitritte') ?? current.joinThreshold, windowSeconds: interaction.options.getInteger('zeitfenster') ?? current.windowSeconds, minAccountAgeDays: interaction.options.getInteger('kontoalter') ?? current.minAccountAgeDays, autoLockdown: true };
+    await saveRaidSettings(interaction.guildId, next, interaction.user.id);
+    return interaction.reply({ content: '✅ Raid-Schutz ' + (next.enabled ? 'aktiviert' : 'deaktiviert') + '. Schwelle: ' + next.joinThreshold + ' Beitritte in ' + next.windowSeconds + ' Sekunden; Mindest-Kontoalter: ' + next.minAccountAgeDays + ' Tage.', ...EPHEMERAL });
+  }
+  if (command === 'raid-lockdown') {
+    const id = await lockdownGuild(interaction.guild, interaction.user.id, 'Manueller Lockdown durch ' + interaction.user.tag);
+    return interaction.reply({ content: '🔒 Raid-Lockdown aktiviert. ID: `' + id + '`', ...EPHEMERAL });
+  }
+  if (command === 'raid-entsperren') {
+    const restored = await restoreGuild(interaction.guild, interaction.user.id);
+    return interaction.reply({ content: restored ? '🔓 Lockdown aufgehoben; vorherige Kanalrechte wurden wiederhergestellt.' : 'ℹ️ Es ist kein aktiver Lockdown vorhanden.', ...EPHEMERAL });
+  }
+  if (command === 'dm-senden') {
+    const recipient = interaction.options.getUser('user', true);
+    const message = interaction.options.getString('nachricht', true);
+    if (recipient.bot || recipient.id === interaction.user.id) return interaction.reply({ content: '❌ Bitte wähle einen anderen Nutzer (keinen Bot).', ...EPHEMERAL });
+    const id = await openDmThread(interaction.guildId, interaction.user.id, recipient, message);
+    return interaction.reply({ content: '✅ DM an <@' + recipient.id + '> gesendet. Antworten werden dir per DM weitergeleitet. Dialog-ID: `' + id + '`', ...EPHEMERAL });
+  }
+  if (command === 'personalakte' || command === 'personalakte-setzen' || command === 'personalakte-befordern' || command === 'personalakte-verwarnen' || command === 'personalakte-aktivitaet') {
+    const target = interaction.options.getUser('user', true);
+    if (target.bot) return interaction.reply({ content: '❌ Bots erhalten keine Personalakte.', ...EPHEMERAL });
+    if (command === 'personalakte') {
+      const record = await personnel.ensureRecord(interaction.guildId, target.id, interaction.user.id);
+      const [events, unitName] = await Promise.all([personnel.getEvents(interaction.guildId, target.id), personnel.getUnitName(record.unit_id, interaction.guildId)]);
+      const promotions = events.filter((event) => event.event_type === 'promotion');
+      const warnings = events.filter((event) => event.event_type === 'warning');
+      const activity = events.filter((event) => event.event_type === 'activity');
+      const history = events.slice(0, 8).map((event) => '• ' + event.event_type + ': ' + (event.new_value || event.details?.reason || event.details?.description || '—') + ' (<t:' + Math.floor(new Date(event.created_at).getTime() / 1000) + ':R>)').join('\n') || 'Noch keine Einträge.';
+      const text = '## Digitale Personalakte\n**Soldat:** <@' + target.id + '>\n**Rang:** ' + record.rank + '\n**Einheit:** ' + unitName + '\n**Eintritt:** ' + (record.joined_at || 'Nicht hinterlegt') + '\n**Beförderungen:** ' + promotions.length + '\n**Verwarnungen:** ' + warnings.length + '\n**Aktivitätseinträge:** ' + activity.length + '\n\n**Verlauf**\n' + history;
+      return interaction.reply({ content: text.slice(0, 1950), ...EPHEMERAL });
+    }
+    if (command === 'personalakte-setzen') {
+      const rank = interaction.options.getString('rang', true).slice(0, 100);
+      const joined = interaction.options.getString('eintritt');
+      const unitName = interaction.options.getString('einheit');
+      if (joined && !/^\d{4}-\d{2}-\d{2}$/.test(joined)) return interaction.reply({ content: '❌ Eintrittsdatum muss YYYY-MM-DD sein.', ...EPHEMERAL });
+      let unitId = null;
+      if (unitName) {
+        const unit = (await listUnits(interaction.guildId)).find((item) => item.name.toLowerCase() === unitName.toLowerCase());
+        if (!unit) return interaction.reply({ content: '❌ Einheit nicht gefunden.', ...EPHEMERAL });
+        unitId = unit.id;
+      }
+      const before = await personnel.ensureRecord(interaction.guildId, target.id, interaction.user.id);
+      const patch = { rank, ...(joined ? { joined_at: joined } : {}), ...(unitName ? { unit_id: unitId } : {}) };
+      await personnel.updateRecord(interaction.guildId, target.id, interaction.user.id, patch);
+      await personnel.addEvent(interaction.guildId, target.id, interaction.user.id, 'rank_change', before.rank, rank, { unitName: unitName || null, joinedAt: joined || null });
+      return interaction.reply({ content: '✅ Personalakte von <@' + target.id + '> aktualisiert.', ...EPHEMERAL });
+    }
+    if (command === 'personalakte-befordern') {
+      const nextRank = interaction.options.getString('neuer_rang', true).slice(0, 100);
+      const reason = interaction.options.getString('grund') || '';
+      const before = await personnel.ensureRecord(interaction.guildId, target.id, interaction.user.id);
+      await personnel.updateRecord(interaction.guildId, target.id, interaction.user.id, { rank: nextRank });
+      await personnel.addEvent(interaction.guildId, target.id, interaction.user.id, 'promotion', before.rank, nextRank, { reason: reason.slice(0, 500) });
+      return interaction.reply({ content: '🎖️ <@' + target.id + '> wurde in der Personalakte von **' + before.rank + '** zu **' + nextRank + '** befördert.', ...EPHEMERAL });
+    }
+    if (command === 'personalakte-verwarnen') {
+      const reason = interaction.options.getString('grund', true).slice(0, 1000);
+      await personnel.ensureRecord(interaction.guildId, target.id, interaction.user.id);
+      await personnel.addEvent(interaction.guildId, target.id, interaction.user.id, 'warning', null, reason, {});
+      return interaction.reply({ content: '⚠️ Verwarnung in der Personalakte von <@' + target.id + '> eingetragen.', ...EPHEMERAL });
+    }
+    const description = interaction.options.getString('beschreibung', true).slice(0, 1000);
+    await personnel.ensureRecord(interaction.guildId, target.id, interaction.user.id);
+    await personnel.updateRecord(interaction.guildId, target.id, interaction.user.id, { last_activity_at: new Date().toISOString() });
+    await personnel.addEvent(interaction.guildId, target.id, interaction.user.id, 'activity', null, description, {});
+    return interaction.reply({ content: '✅ Aktivität in der Personalakte von <@' + target.id + '> dokumentiert.', ...EPHEMERAL });
+  }
+  if (command === 'embed-bearbeiten') {
+    const messageId = interaction.options.getString('nachricht_id', true);
+    const response = await supabaseRequest('bww_embed_messages?select=*&guild_id=eq.' + interaction.guildId + '&message_id=eq.' + messageId + '&limit=1', { headers: { Prefer: 'return=representation' } });
+    const [record] = await response.json();
+    if (!record) return interaction.reply({ content: '❌ Diese Nachricht ist nicht als bearbeitbares BWW-Embed gespeichert. Nutze zuerst /embed.', ...EPHEMERAL });
+    const payload = { ...record.payload };
+    const title = interaction.options.getString('titel');
+    const description = interaction.options.getString('text');
+    const image = interaction.options.getString('bild_url');
+    if (title !== null) payload.title = title;
+    if (description !== null) payload.description = description;
+    if (image !== null) payload.image = image;
+    if (title === null && description === null && image === null) return interaction.reply({ content: '❌ Gib mindestens titel, text oder bild_url an.', ...EPHEMERAL });
+    const channel = await interaction.guild.channels.fetch(record.channel_id);
+    const message = await channel.messages.fetch(record.message_id);
+    await message.edit({ components: [embedV2(payload)], flags: V2, allowedMentions: { parse: [] } });
+    await supabaseRequest('bww_embed_messages?id=eq.' + record.id, { method: 'PATCH', body: JSON.stringify({ payload, updated_by: interaction.user.id, updated_at: new Date().toISOString() }) });
+    return interaction.reply({ content: '✅ Components-V2-Embed wurde bearbeitet.', ...EPHEMERAL });
+  }
   if (command === 'ticket') {
     try { await interaction.channel.send({ components: [ticketContainer(config)], flags: V2 }); return interaction.reply({ content: '✅ Ticket-Panel gesendet.', ...EPHEMERAL }); } catch (err) { return interaction.reply({ content: `❌ Ticket-Panel fehlgeschlagen: ${err.message}`, ...EPHEMERAL }); }
   }
