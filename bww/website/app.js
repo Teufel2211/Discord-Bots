@@ -13,7 +13,7 @@ const SUPABASE_URL = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
 const SUPABASE_KEY = process.env.SUPABASE_SECRET_KEY || '';
 const COOKIE = 'bww_dashboard_session';
 const SESSION_DAYS = 7;
-const ACTIONS = new Set(['send_message', 'embed_send', 'embed_edit', 'raid_lockdown', 'raid_restore', 'dm_send']);
+const ACTIONS = new Set(['send_message', 'embed_send', 'embed_edit', 'raid_lockdown', 'raid_restore', 'dm_send', 'dm_thread']);
 const loginAttempts = new Map();
 
 function escapeHtml(value) {
