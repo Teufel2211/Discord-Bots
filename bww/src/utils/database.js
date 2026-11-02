@@ -25,7 +25,8 @@ const DEFAULT_SETTINGS = Object.freeze({
     messageId: '',
     mode: 'online'
   },
-  permissions: {}
+  permissions: {},
+  raidProtection: { enabled: false, joinThreshold: 6, windowSeconds: 12, minAccountAgeDays: 0, autoLockdown: true }
 });
 
 const settingsCache = new Map();
@@ -51,6 +52,7 @@ function mergeSettings(value) {
           Array.isArray(roles) ? roles.filter((id) => typeof id === 'string') : []
         ]))
       : {},
+    raidProtection: { ...DEFAULT_SETTINGS.raidProtection, ...(parsed.raidProtection || {}) },
     recurringMessages: Array.isArray(parsed.recurringMessages) ? parsed.recurringMessages : []
   };
 }
