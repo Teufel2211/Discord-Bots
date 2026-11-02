@@ -276,7 +276,7 @@ Der Bot muss online sein, damit Nachrichten, Embeds, DM-Dialoge und Lockdown-Akt
 
 Raid Protection ist standardmäßig deaktiviert. Die automatische Erkennung reagiert auf ungewöhnlich viele Beitritte innerhalb des Zeitfensters und optional auf Konten unterhalb des eingestellten Mindestalters. Der automatische Lockdown ist auf das Sperren von @everyone-Nachrichtenrechten begrenzt; es werden keine Mitglieder automatisch gekickt oder gebannt.
 
-Personalakten und Ereignisverläufe sind serverbezogen gespeichert. Dashboard-Zugriff erfolgt über den einmaligen Administrator-Code; Bot-Befehle unterliegen der konfigurierten Command-Berechtigung.
+Personalakten und Ereignisverläufe sind serverbezogen gespeichert. Für bereits angelegte Personalakten aktualisiert der Bot die letzte Aktivität anhand von Discord-Nachrichten höchstens einmal je 30 Minuten; Nachrichteninhalte werden dabei nicht gespeichert. Dashboard-Zugriff erfolgt über den einmaligen Administrator-Code; Bot-Befehle unterliegen der konfigurierten Command-Berechtigung.
 
 ## Berechtigungen
 
