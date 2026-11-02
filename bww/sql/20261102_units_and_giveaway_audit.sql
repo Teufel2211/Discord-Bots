@@ -89,7 +89,11 @@ revoke all on public.bww_units, public.bww_unit_members, public.bww_unit_audit_l
 grant all on public.bww_units, public.bww_unit_members, public.bww_unit_audit_logs, public.bww_giveaway_audit_events to service_role;
 grant usage, select on all sequences in schema public to service_role;
 
+drop policy if exists bww_units_service_role_all on public.bww_units;
 create policy bww_units_service_role_all on public.bww_units for all to service_role using (true) with check (true);
+drop policy if exists bww_unit_members_service_role_all on public.bww_unit_members;
 create policy bww_unit_members_service_role_all on public.bww_unit_members for all to service_role using (true) with check (true);
+drop policy if exists bww_unit_audit_logs_service_role_all on public.bww_unit_audit_logs;
 create policy bww_unit_audit_logs_service_role_all on public.bww_unit_audit_logs for all to service_role using (true) with check (true);
+drop policy if exists bww_giveaway_audit_events_service_role_all on public.bww_giveaway_audit_events;
 create policy bww_giveaway_audit_events_service_role_all on public.bww_giveaway_audit_events for all to service_role using (true) with check (true);
