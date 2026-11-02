@@ -7,7 +7,7 @@ app.disable('x-powered-by');
 app.set('trust proxy', 1);
 app.use(express.urlencoded({ extended: false, limit: '32kb' }));
 app.use(express.json({ limit: '32kb' }));
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), { maxAge: '1h', etag: true }));
 
 const SUPABASE_URL = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
 const SUPABASE_KEY = process.env.SUPABASE_SECRET_KEY || '';
@@ -167,8 +167,10 @@ app.post('/actions/raid-restore', requireSession, async (req,res) => {
 
 app.get('/personalakten', requireSession, async (req, res) => {
   const g = req.dashboardSession.guild_id;
-  const rows = await db('bww_personalakten?select=*&guild_id=eq.' + g + '&order=updated_at.desc&limit=100', { headers: { Prefer: 'return=representation' } });
-  const units = await db('bww_units?select=id,name&guild_id=eq.' + g + '&order=name.asc', { headers: { Prefer: 'return=representation' } });
+  const [rows, units] = await Promise.all([
+    db('bww_personalakten?select=user_id,rank,joined_at,unit_id,last_activity_at,updated_at&guild_id=eq.' + g + '&order=updated_at.desc&limit=100', { headers: { Prefer: 'return=representation' } }),
+    db('bww_units?select=id,name&guild_id=eq.' + g + '&order=name.asc&limit=100', { headers: { Prefer: 'return=representation' } })
+  ]);
   const options = [['','Keine Einheit'], ...units.map((u) => [u.id,u.name])];
   const rowsHtml = rows.map((r) => ['<code>' + escapeHtml(r.user_id) + '</code>',escapeHtml(r.rank),escapeHtml(r.joined_at || '—'),escapeHtml(units.find((u) => u.id === r.unit_id)?.name || '—'),escapeHtml(r.last_activity_at ? new Date(r.last_activity_at).toLocaleDateString('de-DE') : '—')]);
   const body = card('Personalakte anlegen / aktualisieren', form('/personalakten/save', field('Discord User-ID','user_id','', 'text',true) + field('Rang','rank','Rekrut','text',true) + field('Eintrittsdatum','joined_at','','date') + select('Einheit','unit_id',options) + button('Akte speichern'), 'form-grid')) + card('Verlaufseintrag hinzufügen', form('/personalakten/event', field('Discord User-ID','user_id','','text',true) + select('Eintragstyp','event_type',[['promotion','Beförderung'],['warning','Verwarnung'],['activity','Aktivität']]) + field('Neuer Rang / Grund / Aktivität','value','','text',true) + button('Eintrag speichern'),'form-grid')) + card('Soldatenakten', table(['Discord-ID','Rang','Eintritt','Einheit','Letzte Aktivität'], rowsHtml));
@@ -195,7 +197,7 @@ app.post('/personalakten/event', requireSession, async (req, res) => {
 
 app.get('/einheiten', requireSession, async (req,res) => {
   const g=req.dashboardSession.guild_id;
-  const units=await db('bww_units?select=*&guild_id=eq.'+g+'&order=unit_type.asc,name.asc',{headers:{Prefer:'return=representation'}});
+  const units=await db('bww_units?select=id,name,unit_type,parent_id,responsibilities&guild_id=eq.'+g+'&order=unit_type.asc,name.asc&limit=100',{headers:{Prefer:'return=representation'}});
   const options=[['','Keine übergeordnete Einheit'],...units.map(u=>[u.id,u.name+' ('+u.unit_type+')'])];
   const body=card('Neue Einheit',form('/einheiten/create',select('Typ','unit_type',[['kompanie','Kompanie'],['zug','Zug'],['gruppe','Gruppe']]) + field('Name','name','','text',true) + select('Übergeordnete Einheit','parent_id',options) + field('Zuständigkeit','responsibilities') + button('Einheit erstellen'),'form-grid'))+card('Mitglied zuweisen',form('/einheiten/member',select('Einheit','unit_id',units.map(u=>[u.id,u.name]))+field('Discord User-ID','user_id','','text',true)+select('Position','position',[['mitglied','Mitglied'],['leiter','Leiter'],['stellvertreter','Stellvertreter']])+button('Mitglied zuweisen'),'form-grid'))+card('Einheitenstruktur',table(['Name','Typ','Übergeordnet','Zuständigkeit'],units.map(u=>[escapeHtml(u.name),escapeHtml(u.unit_type),escapeHtml(units.find(p=>p.id===u.parent_id)?.name||'—'),escapeHtml(u.responsibilities||'—')])));
   res.send(page('Einheiten',body,req.dashboardSession));
@@ -224,7 +226,7 @@ app.post('/einheiten/member',requireSession,async(req,res)=>{
 });
 
 app.get('/raid',requireSession,async(req,res)=>{
-  const g=req.dashboardSession.guild_id,[settings,events,lockdowns]=await Promise.all([getSettings(g),db('bww_raid_events?select=*&guild_id=eq.'+g+'&order=created_at.desc&limit=50',{headers:{Prefer:'return=representation'}}),db('bww_raid_lockdowns?select=*&guild_id=eq.'+g+'&order=created_at.desc&limit=10',{headers:{Prefer:'return=representation'}})]);
+  const g=req.dashboardSession.guild_id,[settings,events,lockdowns]=await Promise.all([getSettings(g),db('bww_raid_events?select=event_type,user_id,details,created_at&guild_id=eq.'+g+'&order=created_at.desc&limit=50',{headers:{Prefer:'return=representation'}}),db('bww_raid_lockdowns?select=reason,created_at,restored_at&guild_id=eq.'+g+'&order=created_at.desc&limit=10',{headers:{Prefer:'return=representation'}})]);
   const raid=settings.raidProtection||{};
   const body=card('Raid-Schutz Einstellungen',form('/raid/settings', '<label class="check"><input type="checkbox" name="enabled" value="true" '+(raid.enabled?'checked':'')+'> Automatische Join-Raid-Erkennung aktiv</label>'+field('Join-Schwelle','joinThreshold',raid.joinThreshold??6,'number',true)+field('Zeitfenster in Sekunden','windowSeconds',raid.windowSeconds??12,'number',true)+field('Mindest-Kontoalter in Tagen (0 = aus)','minAccountAgeDays',raid.minAccountAgeDays??0,'number',true)+button('Einstellungen speichern'))) + card('Raid-Ereignisse',table(['Zeit','Ereignis','Nutzer','Details'],events.map(e=>[escapeHtml(new Date(e.created_at).toLocaleString('de-DE')),escapeHtml(e.event_type),escapeHtml(e.user_id||'—'),escapeHtml(JSON.stringify(e.details||{}))])))+card('Lockdown-Verlauf',table(['Grund','Gestartet','Status'],lockdowns.map(l=>[escapeHtml(l.reason),escapeHtml(new Date(l.created_at).toLocaleString('de-DE')),l.restored_at?'Aufgehoben':'<strong>Aktiv</strong>'])));
   res.send(page('Raid Protection',body,req.dashboardSession));
@@ -237,7 +239,7 @@ app.post('/raid/settings',requireSession,async(req,res)=>{
 });
 
 app.get('/embeds',requireSession,async(req,res)=>{
-  const g=req.dashboardSession.guild_id,records=await db('bww_embed_messages?select=*&guild_id=eq.'+g+'&order=updated_at.desc&limit=50',{headers:{Prefer:'return=representation'}});
+  const g=req.dashboardSession.guild_id,records=await db('bww_embed_messages?select=id,message_id,payload,updated_at&guild_id=eq.'+g+'&order=updated_at.desc&limit=50',{headers:{Prefer:'return=representation'}});
   const rows=records.map(r=>[escapeHtml(r.payload?.title||'Ohne Titel'),'<code>'+escapeHtml(r.message_id)+'</code>',escapeHtml(new Date(r.updated_at).toLocaleString('de-DE')),form('/embeds/edit',field('Embed-ID','id',r.id,'hidden')+field('Titel','title',r.payload?.title||'')+textarea('Text','description',r.payload?.description||'')+field('Bild-URL','image',r.payload?.image||'')+button('Änderungen einreihen'))]);
   const body=card('Neues Components-V2-Embed',form('/embeds/send',field('Kanal-ID','channel_id','','text',true)+field('Titel','title')+textarea('Text','description','',true)+field('Bild-URL','image')+field('Farbe (HEX)','color','#2F3136')+button('Embed senden'),'form-grid'))+card('Gespeicherte Embeds',table(['Titel','Nachrichten-ID','Aktualisiert','Bearbeiten'],rows));
   res.send(page('Embeds',body,req.dashboardSession));
