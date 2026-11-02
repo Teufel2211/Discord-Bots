@@ -18,6 +18,7 @@ const { getGuildSettings, syncBotStatus, syncGuilds, markOffline } = require('./
 const { processDashboardActions } = require('./utils/dashboardActions');
 const { handleMemberJoin } = require('./utils/raidProtection');
 const { relayDmReply } = require('./utils/dmRelay');
+const { recordMessageActivity } = require('./utils/personnel');
 
 const token = process.env.DISCORD_TOKEN || '';
 if (!token) {
@@ -27,7 +28,7 @@ if (!token) {
 console.log('[BWW] Token geladen.');
 
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.DirectMessages],
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages, GatewayIntentBits.DirectMessages],
   partials: [Partials.GuildMember, Partials.Channel],
 });
 
@@ -89,7 +90,11 @@ client.on(Events.GuildMemberAdd, (member) => {
 });
 
 client.on(Events.MessageCreate, (message) => {
-  if (!message.guild) Promise.resolve(relayDmReply(message, client)).catch((err) => console.error('[BWW DM] Weiterleitung fehlgeschlagen:', err.message));
+  if (!message.guild) {
+    Promise.resolve(relayDmReply(message, client)).catch((err) => console.error('[BWW DM] Weiterleitung fehlgeschlagen:', err.message));
+  } else if (!message.author.bot) {
+    Promise.resolve(recordMessageActivity(message.guild.id, message.author.id)).catch((err) => console.error('[BWW Personalakte] Aktivität fehlgeschlagen:', err.message));
+  }
 });
 
 client.on(Events.InteractionCreate, (interaction) => {
