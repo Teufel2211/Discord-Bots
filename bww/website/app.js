@@ -203,6 +203,12 @@ app.get('/einheiten', requireSession, async (req,res) => {
 app.post('/einheiten/create',requireSession,async(req,res)=>{
   const g=req.dashboardSession.guild_id, type=String(req.body.unit_type||''), name=String(req.body.name||'').trim(), parent=String(req.body.parent_id||'').trim()||null;
   if(!['kompanie','zug','gruppe'].includes(type)||!name||name.length>100)return res.status(400).send('Ungültige Einheit.');
+  if(type==='kompanie' && parent)return res.status(400).send('Eine Kompanie darf keine übergeordnete Einheit haben.');
+  if(type!=='kompanie'){
+    if(!parent)return res.status(400).send('Ein Zug benötigt eine Kompanie, eine Gruppe benötigt einen Zug.');
+    const parents=await db('bww_units?select=id,unit_type&guild_id=eq.'+g+'&id=eq.'+parent+'&limit=1',{headers:{Prefer:'return=representation'}});
+    if(!parents.length || parents[0].unit_type!==(type==='zug'?'kompanie':'zug'))return res.status(400).send('Die übergeordnete Einheit passt nicht zur Hierarchie.');
+  }
   await db('bww_units',{method:'POST',body:JSON.stringify({guild_id:g,unit_type:type,name,parent_id:parent,responsibilities:String(req.body.responsibilities||'').slice(0,1000),created_by:req.dashboardSession.user_id})});
   res.redirect('/einheiten');
 });
@@ -212,7 +218,7 @@ app.post('/einheiten/member',requireSession,async(req,res)=>{
   if(!/^\d{15,22}$/.test(userId)||!['mitglied','leiter','stellvertreter'].includes(position))return res.status(400).send('Mitgliedsdaten ungültig.');
   const unit=await db('bww_units?select=id&guild_id=eq.'+g+'&id=eq.'+unitId+'&limit=1',{headers:{Prefer:'return=representation'}});
   if(!unit.length)return res.status(404).send('Einheit nicht gefunden.');
-  await db('bww_unit_members',{method:'POST',body:JSON.stringify({guild_id:g,unit_id:unitId,user_id:userId,position,assigned_by:req.dashboardSession.user_id})});
+  await db('bww_unit_members?on_conflict=unit_id,user_id',{method:'POST',headers:{Prefer:'resolution=merge-duplicates,return=minimal'},body:JSON.stringify({guild_id:g,unit_id:unitId,user_id:userId,position,assigned_by:req.dashboardSession.user_id})});
   await db('bww_unit_audit_logs',{method:'POST',body:JSON.stringify({guild_id:g,unit_id:unitId,actor_id:req.dashboardSession.user_id,action:'member_assigned_dashboard',details:{userId,position}})});
   res.redirect('/einheiten');
 });
