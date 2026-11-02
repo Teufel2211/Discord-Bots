@@ -19,7 +19,16 @@ async function recordRaidEvent(guildId, userId, eventType, details = {}) {
 async function lockdownGuild(guild, actorId, reason = 'Automatische Raid-Erkennung') {
   const { data: existing } = await (await supabaseRequest('bww_raid_lockdowns?select=id&guild_id=eq.' + guild.id + '&restored_at=is.null&limit=1', { headers: { Prefer: 'return=representation' } })).json().then(data => ({ data }));
   if (existing?.length) return existing[0].id;
-  const response = await supabaseRequest('bww_raid_lockdowns', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ guild_id: guild.id, reason: String(reason).slice(0, 500), created_by: actorId || null }) });
+  let response;
+  try {
+    response = await supabaseRequest('bww_raid_lockdowns', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ guild_id: guild.id, reason: String(reason).slice(0, 500), created_by: actorId || null }) });
+  } catch (error) {
+    if (!String(error.message).includes('HTTP 409')) throw error;
+    const retry = await supabaseRequest('bww_raid_lockdowns?select=id&guild_id=eq.' + guild.id + '&restored_at=is.null&limit=1', { headers: { Prefer: 'return=representation' } });
+    const [active] = await retry.json();
+    if (active) return active.id;
+    throw error;
+  }
   const [lockdown] = await response.json();
   if (!lockdown?.id) throw new Error('Lockdown konnte nicht gespeichert werden.');
   const everyone = guild.roles.everyone;
