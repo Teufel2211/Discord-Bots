@@ -126,6 +126,50 @@ async function patchGuildSettings(guildId, patch, updatedBy = null) {
   return saveGuildSettings(guildId, next, updatedBy);
 }
 
+
+async function syncBotStatus(client, status = 'online') {
+  if (!isConfigured()) return;
+  const memberCount = client.guilds.cache.reduce((sum, guild) => sum + Number(guild.memberCount || 0), 0);
+  await supabaseRequest('bww_bot_status?on_conflict=id', {
+    method: 'POST',
+    headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+    body: JSON.stringify({
+      id: 'primary',
+      bot_user_id: client.user?.id || null,
+      bot_tag: client.user?.tag || null,
+      guild_count: client.guilds.cache.size,
+      member_count: memberCount,
+      ping_ms: Number.isFinite(client.ws.ping) ? Math.round(client.ws.ping) : null,
+      uptime_seconds: Math.floor((client.uptime || 0) / 1000),
+      status,
+      updated_at: new Date().toISOString()
+    })
+  });
+}
+async function syncGuilds(client) {
+  if (!isConfigured()) return;
+  for (const guild of client.guilds.cache.values()) {
+    await supabaseRequest('bww_guilds?on_conflict=guild_id', {
+      method: 'POST',
+      headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify({
+        guild_id: guild.id,
+        name: guild.name,
+        member_count: Number(guild.memberCount || 0),
+        icon_url: guild.iconURL({ size: 128 }) || null,
+        updated_at: new Date().toISOString()
+      })
+    });
+  }
+}
+async function markOffline(client) {
+  if (!isConfigured()) return;
+  await supabaseRequest('bww_bot_status?id=eq.primary', {
+    method: 'PATCH',
+    body: JSON.stringify({ status: 'offline', updated_at: new Date().toISOString(), uptime_seconds: Math.floor((client.uptime || 0) / 1000) })
+  });
+}
+
 module.exports = {
   DEFAULT_SETTINGS,
   isConfigured,
@@ -133,4 +177,7 @@ module.exports = {
   saveGuildSettings,
   patchGuildSettings,
   supabaseRequest,
+  syncBotStatus,
+  syncGuilds,
+  markOffline,
 };
