@@ -304,6 +304,7 @@ module.exports = async (interaction, client) => {
   }
   if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
   if (command === 'embed') {
+    if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
     const text = interaction.options.getString('text', true);
     const title = interaction.options.getString('titel') || '';
     const attachment = interaction.options.getAttachment('bild');
