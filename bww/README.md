@@ -87,7 +87,7 @@ Der Code erwartet folgende Spalten:
 
 Die Tabelle muss für den vom Bot verwendeten serverseitigen Supabase-Schlüssel les- und beschreibbar sein. Der Bot greift über die Supabase-REST-Schnittstelle darauf zu.
 
-In `settings` werden unter anderem Welcome-, Verify-, Ticket- und Status-Einstellungen, Command-Berechtigungen sowie wiederkehrende Nachrichten gespeichert.
+In `settings` werden unter anderem Welcome-, Verify-, Ticket- und Status-Einstellungen, Command-Berechtigungen sowie wiederkehrende Nachrichten gespeichert. Das Einheiten-System verwendet zusätzlich `bww_units`, `bww_unit_members` und `bww_unit_audit_logs`.
 
 ## Ersteinrichtung auf Discord
 
@@ -162,15 +162,44 @@ Ticket-Gründe im aktuellen System:
 
 Ein Ticket wird als eigener, zugriffsbeschränkter Textkanal erstellt. Der Ersteller und die konfigurierte Support-Rolle erhalten Zugriff. Der Ticket-Schließen-Button löscht den Ticket-Kanal nach Bestätigung.
 
+### Einheiten- und Kompaniesystem
+
+Das Einheiten-System bildet die Organisationsstruktur **Kompanie → Zug → Gruppe** ab. Jede Einheit kann eine Zuständigkeit, einen Leiter, einen Stellvertreter und beliebig viele Mitglieder besitzen. Die Hierarchie wird in Supabase gespeichert und serverbezogen getrennt.
+
+| Command | Beschreibung |
+|---|---|
+| `/einheit-erstellen` | Erstellt eine Kompanie, einen Zug unter einer Kompanie oder eine Gruppe unter einem Zug. |
+| `/einheit-liste` | Zeigt alle Einheiten mit Führung und Mitgliederzahl. |
+| `/einheit-info` | Zeigt die vollständigen Daten einer Einheit einschließlich Mitglieder und Zuständigkeiten. |
+| `/einheit-bearbeiten` | Ändert den Namen oder die Zuständigkeiten. |
+| `/einheit-mitglied` | Fügt ein Mitglied hinzu oder weist ihm die Position Mitglied, Leiter oder Stellvertreter zu. |
+| `/einheit-entfernen` | Entfernt ein Mitglied aus einer Einheit. |
+| `/einheit-loeschen` | Löscht eine Einheit, sofern sie keine untergeordneten Einheiten mehr enthält. |
+
+**Berechtigungen:**
+- Administratoren und mit `/setup-permission command:einheiten` freigeschaltete Rollen dürfen Kompanien erstellen und Einheiten verwalten.
+- Leiter und Stellvertreter dürfen ihre eigene Einheit sowie untergeordnete Einheiten verwalten.
+- Leiter und Stellvertreter dürfen untergeordnete Züge bzw. Gruppen in ihrem Zuständigkeitsbereich erstellen.
+- Pro Einheit gibt es jeweils höchstens einen Leiter und einen Stellvertreter.
+- Änderungen werden im Audit-Protokoll `bww_unit_audit_logs` erfasst.
+
 ### Giveaways
 
 | Command | Beschreibung |
 |---|---|
-| `/giveaway` | Startet ein Giveaway mit Preis, Laufzeit in Sekunden und optionaler Gewinneranzahl. |
+| `/giveaway` | Startet ein Giveaway mit Preis, Laufzeit, Gewinneranzahl und optionalen Teilnahmebedingungen. |
+| `/giveaway-protokoll` | Zeigt die letzten 50 protokollierten Ereignisse eines Giveaways anhand seiner ID. |
 
-Teilnehmer können über die Giveaway-Schaltflächen teilnehmen oder ihre Teilnahme zurückziehen. Das Giveaway kann automatisch nach Ablauf enden. Berechtigte Mitarbeiter können es vorzeitig beenden oder nach Ende eine neue Ziehung durchführen.
+Unterstützte Teilnahmebedingungen:
+- Freitext mit zusätzlichen Bedingungen, der im Giveaway-Panel angezeigt wird.
+- Erforderliche Discord-Rolle.
+- Mindestalter des Discord-Kontos in Tagen.
+- Mindestzeit auf dem Discord-Server in Tagen.
+- Bonusrolle mit zusätzlichen Losen (bis zu 20 Bonuslose).
 
-Giveaway-Daten werden lokal in `bww/config/giveaways.json` gespeichert. Bei einem Neustart prüft der Scheduler aktive Giveaways und beendet abgelaufene Verlosungen.
+Teilnehmer können über die Schaltflächen teilnehmen oder ihre Teilnahme zurückziehen. Die Teilnahmebedingungen werden beim Beitritt geprüft. Bonuslose werden bei der Gewinnerziehung gewichtet; ein Teilnehmer kann pro Ziehung höchstens einmal gewinnen. Giveaways enden automatisch nach Ablauf oder können von berechtigten Mitarbeitern vorzeitig beendet werden. Nach dem Ende ist eine Neuziehung möglich, bei der bereits gezogene Gewinner ausgeschlossen werden.
+
+Giveaways werden weiterhin lokal in `bww/config/giveaways.json` geführt, zusätzlich aber in den vorhandenen Supabase-Tabellen gespiegelt. Teilnahmen, Gewinner und Ziehungen werden dort gespeichert. Das Ereignisprotokoll liegt in `bww_giveaway_audit_events`. Bei einem Neustart prüft der Scheduler aktive Giveaways und beendet abgelaufene Verlosungen.
 
 ### Status und Wartung
 
@@ -265,7 +294,7 @@ Folgende Dateien werden vom Bot zur Laufzeit verwendet beziehungsweise angelegt:
 | Datei | Inhalt |
 |---|---|
 | `bww/config/panels.json` | Gespeicherte Custom-Panels und zugehörige Nachrichten-IDs |
-| `bww/config/giveaways.json` | Giveaways, Teilnahmen und Gewinnerhistorie |
+| `bww/config/giveaways.json` | Lokaler Giveaways-Zustand; wichtige Einträge werden zusätzlich in Supabase gespiegelt |
 
 Diese Dateien enthalten Laufzeitdaten. Bei Backups müssen sie zusammen mit der Supabase-Konfiguration berücksichtigt werden. Sie sollten nicht versehentlich durch Deployments oder Synchronisationen überschrieben werden.
 
