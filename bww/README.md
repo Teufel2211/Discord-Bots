@@ -234,6 +234,50 @@ Die Statusnachricht wird regelmäßig aktualisiert. Beim regulären Herunterfahr
 | `/setup-permission` | Erlaubt oder entfernt eine Rolle für einen unterstützten Command. |
 | `/restart` | Beendet den Bot-Prozess kontrolliert über den Host-Prozessmanager, damit dieser ihn neu starten kann. |
 
+## Webdashboard
+
+Das Webdashboard liegt unter `bww/website` und wird separat über Vercel bereitgestellt. Es verwendet dieselbe Supabase-Datenbank wie der Bot. Die Verbindung zum laufenden Bot erfolgt über die serverseitige Tabelle `bww_dashboard_actions`; der Bot verarbeitet neue Aktionen im 5-Sekunden-Takt.
+
+### Dashboard-Login
+
+1. Als Discord-Administrator `/dashboard-code` ausführen.
+2. Den einmaligen 8-stelligen Code im Dashboard eingeben.
+3. Der Code ist fünf Minuten gültig und kann nur einmal eingelöst werden. Die Sitzung läuft nach sieben Tagen ab.
+
+Serverseitig benötigt das Vercel-Projekt `SUPABASE_URL` und `SUPABASE_SECRET_KEY`. Der Secret Key wird nicht an den Browser ausgeliefert. Es werden keine zusätzlichen Discord-OAuth-Secrets benötigt.
+
+### Dashboard-Bereiche
+
+- Übersicht und Bot-Status
+- Digitale Personalakten mit Rang, Eintrittsdatum, Einheit, Beförderungen, Verwarnungen und Aktivitätsverlauf
+- Einheitenstruktur und Mitgliedszuweisung
+- Raid Protection, Join-Schwellen und Lockdown-Protokoll
+- Components-V2-Embeds senden und gespeicherte Nachrichten bearbeiten
+- DM-Versand mit Antwortweiterleitung an den anfragenden Mitarbeiter
+- Tickets, Giveaways, Einstellungen und Aktionsprotokoll
+
+Der Bot muss online sein, damit Nachrichten, Embeds, DM-Dialoge und Lockdown-Aktionen aus dem Dashboard ausgeführt werden.
+
+## Neue Verwaltungsbefehle
+
+| Command | Beschreibung |
+|---|---|
+| `/dashboard-code` | Erstellt einen einmaligen Dashboard-Login-Code (nur Administratoren). |
+| `/raid-schutz` | Aktiviert/deaktiviert Join-Raid-Erkennung und setzt Schwellenwerte. |
+| `/raid-lockdown` | Sperrt Textkanäle für @everyone und sichert vorherige Berechtigungen. |
+| `/raid-entsperren` | Stellt die gespeicherten Kanalberechtigungen wieder her. |
+| `/dm-senden` | Sendet eine DM; Antworten des Empfängers werden an den Command-Ausführenden weitergeleitet. |
+| `/personalakte` | Zeigt Rang, Einheit, Eintritt, Beförderungen, Verwarnungen und Aktivitätsverlauf. |
+| `/personalakte-setzen` | Setzt Rang, Eintrittsdatum und optional Einheit. |
+| `/personalakte-befordern` | Dokumentiert eine Beförderung mit optionaler Begründung. |
+| `/personalakte-verwarnen` | Trägt eine Verwarnung mit Grund ein. |
+| `/personalakte-aktivitaet` | Dokumentiert ein Dienst- oder Aktivitätsereignis. |
+| `/embed-bearbeiten` | Bearbeitet ein zuvor mit `/embed` gespeichertes Components-V2-Embed anhand der Nachrichten-ID. |
+
+Raid Protection ist standardmäßig deaktiviert. Die automatische Erkennung reagiert auf ungewöhnlich viele Beitritte innerhalb des Zeitfensters und optional auf Konten unterhalb des eingestellten Mindestalters. Der automatische Lockdown ist auf das Sperren von @everyone-Nachrichtenrechten begrenzt; es werden keine Mitglieder automatisch gekickt oder gebannt.
+
+Personalakten und Ereignisverläufe sind serverbezogen gespeichert. Dashboard-Zugriff erfolgt über den einmaligen Administrator-Code; Bot-Befehle unterliegen der konfigurierten Command-Berechtigung.
+
 ## Berechtigungen
 
 Es gibt zwei Ebenen:
