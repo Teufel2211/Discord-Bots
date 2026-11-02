@@ -1,35 +1,38 @@
 (() => {
   const cache = new Map();
+  const pending = new Map();
   const TTL = 30000;
   let activeRequest = 0;
-  const getCached = (url) => {
+  const getCached = url => {
     const item = cache.get(url);
     if (!item || Date.now() - item.time > TTL) { cache.delete(url); return null; }
     return item.html;
   };
+  function requestPage(url) {
+    if (pending.has(url)) return pending.get(url);
+    const task = fetch(url, { credentials: 'same-origin', headers: { 'X-Requested-With': 'dashboard-nav' } })
+      .then(response => { if (!response.ok) throw new Error('HTTP ' + response.status); return response.text(); })
+      .then(html => { cache.set(url, { html, time: Date.now() }); return html; })
+      .finally(() => pending.delete(url));
+    pending.set(url, task);
+    return task;
+  }
   async function load(url, push = true) {
     const id = ++activeRequest;
     document.body.classList.add('page-loading');
     try {
-      let html = getCached(url);
-      if (!html) {
-        const response = await fetch(url, { credentials: 'same-origin', headers: { 'X-Requested-With': 'dashboard-nav' } });
-        if (!response.ok) throw new Error('HTTP ' + response.status);
-        html = await response.text();
-        cache.set(url, { html, time: Date.now() });
-      }
+      const html = getCached(url) || await requestPage(url);
       if (id !== activeRequest) return;
       const parsed = new DOMParser().parseFromString(html, 'text/html');
       const nextMain = parsed.querySelector('main');
       if (!nextMain) { window.location.href = url; return; }
       document.querySelector('main')?.replaceWith(nextMain);
       document.title = parsed.title || document.title;
-      document.querySelectorAll('.sidebar nav a').forEach(a => {
-        const target = new URL(a.href, location.href).pathname;
-        a.classList.toggle('active', target === new URL(url, location.href).pathname);
+      document.querySelectorAll('.sidebar nav a').forEach(link => {
+        link.classList.toggle('active', new URL(link.href, location.href).pathname === new URL(url, location.href).pathname);
       });
       if (push) history.pushState({ url }, '', url);
-      window.scrollTo({ top: 0, behavior: 'instant' });
+      window.scrollTo(0, 0);
     } catch (error) {
       console.error('[BWW Dashboard] Navigation failed:', error);
       window.location.href = url;
@@ -38,13 +41,8 @@
     }
   }
   function prefetch(url) {
-    if (getCached(url) || cache.has(url)) return;
-    const entry = { time: Date.now(), html: null };
-    cache.set(url, entry);
-    fetch(url, { credentials: 'same-origin', headers: { 'X-Requested-With': 'dashboard-prefetch' } })
-      .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
-      .then(html => cache.set(url, { time: Date.now(), html }))
-      .catch(() => cache.delete(url));
+    if (getCached(url) || pending.has(url)) return;
+    requestPage(url).catch(() => {});
   }
   document.addEventListener('pointerover', event => {
     const link = event.target.closest('.sidebar nav a');
