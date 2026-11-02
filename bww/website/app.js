@@ -1,11 +1,13 @@
 const crypto = require('node:crypto');
 const express = require('express');
+const path = require('node:path');
 
 const app = express();
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
 app.use(express.urlencoded({ extended: false, limit: '32kb' }));
 app.use(express.json({ limit: '32kb' }));
+app.use('/style.css', express.static(path.join(__dirname, 'public')));
 
 const SUPABASE_URL = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
 const SUPABASE_KEY = process.env.SUPABASE_SECRET_KEY || '';
@@ -143,6 +145,21 @@ app.get('/dashboard', requireSession, async (req, res) => {
   const bot = status?.[0] || {};
   const body = '<div class="stats"><div class="stat"><small>Mitglieder</small><strong>' + (guild.member_count ?? '—') + '</strong></div><div class="stat"><small>Personalakten</small><strong>' + personnel.length + '</strong></div><div class="stat"><small>Einheiten</small><strong>' + units.length + '</strong></div><div class="stat"><small>Offene Tickets</small><strong>' + tickets.length + '</strong></div><div class="stat"><small>Aktive Giveaways</small><strong>' + giveaways.length + '</strong></div></div>' + card('Serverstatus', '<div class="status-row"><span class="status ' + (bot.status === 'online' ? '' : 'off') + '"><i></i> ' + escapeHtml(bot.status || 'Unbekannt') + '</span><span class="muted">Letztes Update: ' + escapeHtml(bot.updated_at ? new Date(bot.updated_at).toLocaleString('de-DE') : 'Keine Daten') + '</span><span class="muted">Ping: ' + escapeHtml(bot.ping_ms ?? '—') + ' ms</span></div>') + card('Schnellaktionen', '<div class="actions">' + form('/actions/send', field('Kanal-ID','channel_id','','text',true) + textarea('Nachricht','content','',true) + button('Nachricht senden'), 'form-grid') + form('/actions/raid-lockdown','<p>Alle Textkanäle für @everyone sperren.</p>' + button('Lockdown aktivieren','danger')) + form('/actions/raid-restore','<p>Gespeicherte Kanalrechte wiederherstellen.</p>' + button('Lockdown aufheben')) + '</div>');
   res.send(page('Übersicht', body, req.dashboardSession));
+});
+
+app.post('/actions/send', requireSession, async (req,res) => {
+  const channelId=String(req.body.channel_id||'').trim(), content=String(req.body.content||'').trim().slice(0,1900);
+  if(!/^\d{15,22}$/.test(channelId)||!content)return res.status(400).send('Kanal-ID oder Nachricht ungültig.');
+  await queueAction(req,'send_message',{channel_id:channelId,content});
+  res.redirect('/dashboard');
+});
+app.post('/actions/raid-lockdown', requireSession, async (req,res) => {
+  await queueAction(req,'raid_lockdown',{reason:'Dashboard-Lockdown durch '+req.dashboardSession.user_id});
+  res.redirect('/dashboard');
+});
+app.post('/actions/raid-restore', requireSession, async (req,res) => {
+  await queueAction(req,'raid_restore',{});
+  res.redirect('/dashboard');
 });
 
 app.get('/personalakten', requireSession, async (req, res) => {
