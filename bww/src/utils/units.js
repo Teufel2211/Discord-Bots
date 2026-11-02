@@ -119,6 +119,8 @@ async function handleUnitCommand(interaction, config) {
   if (command === 'einheit-loeschen') {
     const children = await rows('bww_units?select=id&parent_id=eq.' + unit.id + '&limit=1');
     if (children.length) return interaction.reply({ content: '❌ Diese Einheit enthält noch untergeordnete Einheiten. Lösche zuerst die untergeordneten Gruppen/Züge.', ...EPHEMERAL });
+    const assignedMembers = await rows('bww_unit_members?select=id&unit_id=eq.' + unit.id + '&limit=1');
+    if (assignedMembers.length) return interaction.reply({ content: '❌ Diese Einheit hat noch Mitglieder. Entferne oder versetze sie zuerst.', ...EPHEMERAL });
     await audit(interaction.guildId, unit.id, interaction.user.id, 'unit_deleted', { name: unit.name, type: unit.unit_type });
     await supabaseRequest('bww_units?id=eq.' + unit.id + '&guild_id=eq.' + encodeURIComponent(interaction.guildId), { method: 'DELETE' });
     return interaction.reply({ content: '🗑️ Einheit **' + unit.name + '** wurde gelöscht.', ...EPHEMERAL });
@@ -129,7 +131,7 @@ async function handleUnitCommand(interaction, config) {
     const position = interaction.options.getString('position', true);
     if (!member) return interaction.reply({ content: '❌ Mitglied nicht gefunden.', ...EPHEMERAL });
     if (!POSITIONS[position]) return interaction.reply({ content: '❌ Ungültige Position.', ...EPHEMERAL });
-    if (position !== 'mitglied') await supabaseRequest('bww_unit_members?unit_id=eq.' + unit.id + '&position=eq.' + position + '&user_id=neq.' + member.id, { method: 'DELETE' });
+    if (position !== 'mitglied') await supabaseRequest('bww_unit_members?unit_id=eq.' + unit.id + '&position=eq.' + position + '&user_id=neq.' + member.id, { method: 'PATCH', body: JSON.stringify({ position: 'mitglied' }) });
     await rows('bww_unit_members?on_conflict=unit_id,user_id', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
       body: JSON.stringify({ guild_id: interaction.guildId, unit_id: unit.id, user_id: member.id, position, assigned_by: interaction.user.id }) });
     await audit(interaction.guildId, unit.id, interaction.user.id, 'member_assigned', { userId: member.id, position });
