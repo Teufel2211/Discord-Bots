@@ -132,7 +132,7 @@ const commands = [
     ]},
     { name: 'role', description: 'Rolle', type: 8, required: true },
     { name: 'erlauben', description: 'true = erlauben, false = entfernen', type: 5, required: true }
-  ]}
+  ]},
 
   { name: 'giveaway-protokoll', description: 'Zeigt das Protokoll eines Giveaways.', options: [{ name: 'id', description: 'Giveaway-ID aus der Startmeldung', type: 3, required: true }]},
   { name: 'einheit-erstellen', description: 'Erstellt eine Kompanie, einen Zug oder eine Gruppe.', options: [
