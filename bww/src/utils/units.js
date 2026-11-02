@@ -43,6 +43,8 @@ async function listUnits(guildId) {
     if (!byUnit.has(member.unit_id)) byUnit.set(member.unit_id, []);
     byUnit.get(member.unit_id).push(member);
   }
+  const order = { kompanie: 0, zug: 1, gruppe: 2 };
+  units.sort((a, b) => (order[a.unit_type] - order[b.unit_type]) || a.name.localeCompare(b.name, 'de'));
   return units.map(unit => ({ ...unit, members: byUnit.get(unit.id) || [] }));
 }
 
