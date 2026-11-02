@@ -3,9 +3,10 @@ const { isAllowed } = require('../commands');
 const { getGuildSettings, saveGuildSettings } = require('../utils/database');
 const { embedV2, verifyComponents } = require('../utils/embeds');
 const { ticketContainer, createTicket, TICKET_REASONS } = require('../utils/tickets');
-const { loadGiveaways, saveGiveaways, giveawayContainer, startGiveaway, finalizeGiveaway, rerollGiveaway, updateGiveawayMessage } = require('../utils/giveaway');
+const { loadGiveaways, saveGiveaways, giveawayContainer, startGiveaway, finalizeGiveaway, rerollGiveaway, updateGiveawayMessage, recordGiveawayEvent, recordGiveawayEntry } = require('../utils/giveaway');
 const { getPanel, setPanel, deletePanel, loadPanels, panelContainer, buttonResponseContainer, addPanelMessage } = require('../utils/panels');
 const { createStatusMessage, updateStatusMessage } = require('../utils/status');
+const { handleUnitCommand } = require('../utils/units');
 
 const EPHEMERAL = { flags: MessageFlags.Ephemeral };
 const V2 = MessageFlags.IsComponentsV2;
@@ -69,14 +70,27 @@ module.exports = async (interaction, client) => {
     const list = loadGiveaways(); const g = list.find(x => x.id === id);
     if (action === 'join') {
       if (!g || !g.active) return interaction.reply({ content: '❌ Dieses Giveaway ist bereits beendet.', ...EPHEMERAL });
+      const member = interaction.member;
+      if (g.requiredRoleId && !member?.roles?.cache?.has(g.requiredRoleId)) return interaction.reply({ content: '❌ Für dieses Giveaway benötigst du die erforderliche Rolle.', ...EPHEMERAL });
+      const accountAgeDays = Math.floor((Date.now() - interaction.user.createdTimestamp) / 86400000);
+      const serverAgeDays = member?.joinedTimestamp ? Math.floor((Date.now() - member.joinedTimestamp) / 86400000) : 0;
+      if (accountAgeDays < (g.minAccountAgeDays || 0)) return interaction.reply({ content: '❌ Dein Discord-Konto ist noch nicht alt genug. Erforderlich: ' + g.minAccountAgeDays + ' Tage.', ...EPHEMERAL });
+      if (serverAgeDays < (g.minServerAgeDays || 0)) return interaction.reply({ content: '❌ Du bist noch nicht lange genug auf diesem Server. Erforderlich: ' + g.minServerAgeDays + ' Tage.', ...EPHEMERAL });
       if (g.entries.includes(interaction.user.id)) return interaction.reply({ content: '❌ Du nimmst bereits teil.', ...EPHEMERAL });
-      g.entries.push(interaction.user.id); saveGiveaways(list); await updateGiveawayMessage(client, g);
-      return interaction.reply({ content: '🎉 Du nimmst jetzt am Giveaway teil!', ...EPHEMERAL });
+      const entryCount = 1 + (g.bonusRoleId && member?.roles?.cache?.has(g.bonusRoleId) ? (g.bonusEntries || 0) : 0);
+      g.entries.push(interaction.user.id); saveGiveaways(list);
+      await recordGiveawayEntry(g, interaction.user.id, 'join', entryCount);
+      await recordGiveawayEvent(g, interaction.user.id, 'joined', { entryCount, accountAgeDays, serverAgeDays });
+      await updateGiveawayMessage(client, g);
+      return interaction.reply({ content: '🎉 Du nimmst jetzt am Giveaway teil!' + (entryCount > 1 ? ' Du hast ' + entryCount + ' Lose.' : ''), ...EPHEMERAL });
     }
     if (action === 'leave') {
       if (!g || !g.active) return interaction.reply({ content: '❌ Dieses Giveaway ist bereits beendet.', ...EPHEMERAL });
       const idx = g.entries.indexOf(interaction.user.id); if (idx === -1) return interaction.reply({ content: '❌ Du nimmst nicht an diesem Giveaway teil.', ...EPHEMERAL });
-      g.entries.splice(idx, 1); saveGiveaways(list); await updateGiveawayMessage(client, g);
+      g.entries.splice(idx, 1); saveGiveaways(list);
+      await recordGiveawayEntry(g, interaction.user.id, 'leave');
+      await recordGiveawayEvent(g, interaction.user.id, 'left');
+      await updateGiveawayMessage(client, g);
       return interaction.reply({ content: '👋 Du hast das Giveaway verlassen.', ...EPHEMERAL });
     }
     if (action === 'end' || action === 'reroll') {
@@ -101,6 +115,7 @@ module.exports = async (interaction, client) => {
   }
   if (!interaction.isChatInputCommand()) return;
   const command = interaction.commandName;
+  if (command.startsWith('einheit-')) return handleUnitCommand(interaction, config);
   if (command.startsWith('setup-')) {
     if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) return interaction.reply({ content: '❌ Nur Administratoren dürfen das Setup ändern.', ...EPHEMERAL });
     if (command === 'setup-welcome') { config.welcome = { enabled: true, channelId: interaction.options.getChannel('channel').id, title: interaction.options.getString('title') || '', message: interaction.options.getString('text', true) }; await saveGuildSettings(interaction.guildId, config, interaction.user.id); return interaction.reply({ content: '✅ Welcome-System gespeichert.', ...EPHEMERAL }); }
