@@ -125,7 +125,7 @@ const commands = [
   ]},
   { name: 'setup-permission', description: 'Rollenberechtigung f\u00FCr Commands setzen.', options: [
     { name: 'command', description: 'Command', type: 3, required: true, choices: [
-      { name: 'nachricht', value: 'nachricht' }, { name: 'embed', value: 'embed' }, { name: 'setup', value: 'setup' }, { name: 'verify', value: 'verify' },
+      { name: 'nachricht', value: 'nachricht' }, { name: 'dashboard-code', value: 'dashboard-code' }, { name: 'raid-schutz', value: 'raid-schutz' }, { name: 'raid-lockdown', value: 'raid-lockdown' }, { name: 'raid-entsperren', value: 'raid-entsperren' }, { name: 'dm-senden', value: 'dm-senden' }, { name: 'personalakte', value: 'personalakte' }, { name: 'personalakte-setzen', value: 'personalakte-setzen' }, { name: 'personalakte-befordern', value: 'personalakte-befordern' }, { name: 'personalakte-verwarnen', value: 'personalakte-verwarnen' }, { name: 'personalakte-aktivitaet', value: 'personalakte-aktivitaet' }, { name: 'embed-bearbeiten', value: 'embed-bearbeiten' }, { name: 'embed', value: 'embed' }, { name: 'setup', value: 'setup' }, { name: 'verify', value: 'verify' },
       { name: 'ticket', value: 'ticket' }, { name: 'giveaway', value: 'giveaway' }, { name: 'einheiten', value: 'einheiten' }, { name: 'panel-create', value: 'panel-create' }, { name: 'panel-send', value: 'panel-send' }, { name: 'panel-delete', value: 'panel-delete' }, { name: 'panel-list', value: 'panel-list' }, { name: 'panel-add-button', value: 'panel-add-button' }, { name: 'umfrage', value: 'umfrage' }, { name: 'setup-status', value: 'setup-status' }, { name: 'wartung', value: 'wartung' }, { name: 'restart', value: 'restart' }, { name: 'nachricht-wiederholen', value: 'nachricht-wiederholen' }, { name: 'wiederholung-stoppen', value: 'wiederholung-stoppen' }, { name: 'wiederholung-liste', value: 'wiederholung-liste' },
       { name: 'kick', value: 'kick' }, { name: 'ban', value: 'ban' }, { name: 'unban', value: 'unban' }, { name: 'timeout', value: 'timeout' },
       { name: 'giverole', value: 'giverole' }, { name: 'removerole', value: 'removerole' }
@@ -158,6 +158,49 @@ const commands = [
     { name: 'user', description: 'Discord-Mitglied', type: 6, required: true }
   ]},
   { name: 'einheit-loeschen', description: 'Löscht eine leere untergeordnete Einheit.', options: [{ name: 'name', description: 'Name der Einheit', type: 3, required: true }]},
+
+
+  { name: 'dashboard-code', description: 'Erstellt einen einmaligen Login-Code für das BWW-Webdashboard.' },
+  { name: 'raid-schutz', description: 'Konfiguriert den automatischen Raid-Schutz.', options: [
+    { name: 'aktiv', description: 'Raid-Schutz aktivieren oder deaktivieren', type: 5, required: true },
+    { name: 'beitritte', description: 'Join-Schwelle im Zeitfenster (2–30)', type: 4, required: false, min_value: 2, max_value: 30 },
+    { name: 'zeitfenster', description: 'Zeitfenster in Sekunden (5–120)', type: 4, required: false, min_value: 5, max_value: 120 },
+    { name: 'kontoalter', description: 'Mindestalter eines Kontos in Tagen (0 = aus)', type: 4, required: false, min_value: 0, max_value: 365 }
+  ]},
+  { name: 'raid-lockdown', description: 'Sperrt Textkanäle vorübergehend für @everyone.' },
+  { name: 'raid-entsperren', description: 'Hebt den aktiven Raid-Lockdown wieder auf.' },
+  { name: 'dm-senden', description: 'Sendet einem Nutzer eine DM über den Bot und leitet Antworten weiter.', options: [
+    { name: 'user', description: 'Empfänger der DM', type: 6, required: true },
+    { name: 'nachricht', description: 'Nachricht an den Empfänger', type: 3, required: true }
+  ]},
+  { name: 'personalakte', description: 'Zeigt die digitale Personalakte eines Soldaten.', options: [
+    { name: 'user', description: 'Soldat', type: 6, required: true }
+  ]},
+  { name: 'personalakte-setzen', description: 'Legt Rang, Eintrittsdatum und Einheit fest.', options: [
+    { name: 'user', description: 'Soldat', type: 6, required: true },
+    { name: 'rang', description: 'Aktueller Rang', type: 3, required: true },
+    { name: 'eintritt', description: 'Eintrittsdatum (YYYY-MM-DD)', type: 3, required: false },
+    { name: 'einheit', description: 'Einheitenname', type: 3, required: false }
+  ]},
+  { name: 'personalakte-befordern', description: 'Dokumentiert eine Beförderung.', options: [
+    { name: 'user', description: 'Soldat', type: 6, required: true },
+    { name: 'neuer_rang', description: 'Neuer Rang', type: 3, required: true },
+    { name: 'grund', description: 'Begründung', type: 3, required: false }
+  ]},
+  { name: 'personalakte-verwarnen', description: 'Trägt eine Verwarnung in die Personalakte ein.', options: [
+    { name: 'user', description: 'Soldat', type: 6, required: true },
+    { name: 'grund', description: 'Grund der Verwarnung', type: 3, required: true }
+  ]},
+  { name: 'personalakte-aktivitaet', description: 'Dokumentiert eine Aktivität in der Personalakte.', options: [
+    { name: 'user', description: 'Soldat', type: 6, required: true },
+    { name: 'beschreibung', description: 'Aktivität oder Dienstereignis', type: 3, required: true }
+  ]},
+  { name: 'embed-bearbeiten', description: 'Bearbeitet eine zuvor mit /embed gesendete Components-V2-Nachricht.', options: [
+    { name: 'nachricht_id', description: 'Discord-Nachrichten-ID', type: 3, required: true },
+    { name: 'titel', description: 'Neuer Titel', type: 3, required: false },
+    { name: 'text', description: 'Neuer Text', type: 3, required: false },
+    { name: 'bild_url', description: 'Neue Bild-URL', type: 3, required: false }
+  ]},
 
 ];
 
