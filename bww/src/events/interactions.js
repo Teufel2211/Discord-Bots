@@ -334,7 +334,21 @@ module.exports = async (interaction, client) => {
   if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
   if (command === 'giveaway') {
     const prize = interaction.options.getString('preis', true); const winners = Math.max(1, interaction.options.getInteger('gewinner') || 1); const durationMs = interaction.options.getInteger('dauer') * 1000 || 60000;
-    try { await startGiveaway(interaction.channel, prize, durationMs, winners); return interaction.reply({ content: '✅ Giveaway gestartet!', ...EPHEMERAL }); } catch (err) { return interaction.reply({ content: `❌ Giveaway fehlgeschlagen: ${err.message}`, ...EPHEMERAL }); }
+    try {
+      const requiredRole = interaction.options.getRole('pflichtrolle');
+      const bonusRole = interaction.options.getRole('bonusrolle');
+      const bonusEntries = interaction.options.getInteger('bonuslose') || 0;
+      if (bonusEntries > 0 && !bonusRole) return interaction.reply({ content: '❌ Für Bonuslose musst du auch eine Bonusrolle auswählen.', ...EPHEMERAL });
+      const created = await startGiveaway(interaction.channel, prize, durationMs, winners, {
+        guildId: interaction.guildId, createdBy: interaction.user.id,
+        conditions: interaction.options.getString('bedingungen') || '',
+        requiredRoleId: requiredRole?.id || '',
+        minAccountAgeDays: interaction.options.getInteger('kontoalter') || 0,
+        minServerAgeDays: interaction.options.getInteger('serveralter') || 0,
+        bonusRoleId: bonusRole?.id || '', bonusEntries
+      });
+      return interaction.reply({ content: '✅ Giveaway gestartet! ID: `' + created.id + '`', ...EPHEMERAL });
+    } catch (err) { return interaction.reply({ content: `❌ Giveaway fehlgeschlagen: ${err.message}`, ...EPHEMERAL }); }
   }
   if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
   if (command === 'verify') {
@@ -342,7 +356,7 @@ module.exports = async (interaction, client) => {
   }
   if (command === 'setup') {
     const container = new ContainerBuilder().setAccentColor(0x2F3136);
-    container.addTextDisplayComponents(new TextDisplayBuilder().setContent('## BWW Setup\n`/setup-welcome` [channel] [text] [title?] → Welcome\n`/setup-verify` → Verify\n`/setup-ticket` [kategorie] [rolle] → Ticket\n`/setup-status` [channel] → Status-Embed\n`/setup-permission` → Command-Berechtigungen\n`/restart` → Bot neu starten\n`/wartung` → Wartung an/aus\n`/panel-create` → Custom Panel (10 Buttons) speichern+senden\n`/panel-add-button` → Button hinzufügen\n`/panel-send`/`/panel-delete`/`/panel-list` → Panels verwalten\n`/nachricht-wiederholen` → Nachricht regelmäßig senden\n`/wiederholung-stoppen`/`/wiederholung-liste` → Wiederholungen verwalten\n`/embed` → Embed mit HEX-Farbe und Bild-Upload\n`/kick`, `/ban`, `/unban`, `/timeout` → Moderation\n`/giverole`, `/removerole` → Rollen'));
+    container.addTextDisplayComponents(new TextDisplayBuilder().setContent('## BWW Setup\n`/setup-welcome` [channel] [text] [title?] → Welcome\n`/setup-verify` → Verify\n`/setup-ticket` [kategorie] [rolle] → Ticket\n`/setup-status` [channel] → Status-Embed\n`/setup-permission` → Command-Berechtigungen\n`/restart` → Bot neu starten\n`/wartung` → Wartung an/aus\n`/panel-create` → Custom Panel (10 Buttons) speichern+senden\n`/panel-add-button` → Button hinzufügen\n`/panel-send`/`/panel-delete`/`/panel-list` → Panels verwalten\n`/nachricht-wiederholen` → Nachricht regelmäßig senden\n`/wiederholung-stoppen`/`/wiederholung-liste` → Wiederholungen verwalten\n`/embed` → Embed mit HEX-Farbe und Bild-Upload\n`/kick`, `/ban`, `/unban`, `/timeout` → Moderation\n`/giverole`, `/removerole` → Rollen\n`/einheit-erstellen` → Kompanien, Züge und Gruppen\n`/einheit-liste`, `/einheit-info` → Einheiten anzeigen\n`/einheit-mitglied`, `/einheit-entfernen` → Personalverwaltung'));
     container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true));
     container.addTextDisplayComponents(new TextDisplayBuilder().setContent('**Welcome-Platzhalter:**\n`{user}` → Ping\n`{username}` → Name\n`{displayname}` → Server-Nickname\n`{server}` → Servername\n`{id}` → User-ID\n`{count}` → Mitgliederzahl\n\nDer Avatar des Users erscheint automatisch oben rechts.'));
     return interaction.reply({ components: [container], flags: EPHEMERAL_V2 });
