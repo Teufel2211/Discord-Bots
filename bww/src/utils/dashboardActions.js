@@ -6,7 +6,7 @@ const { openDmThread } = require('./dmRelay');
 
 function hashCode(value) { return crypto.createHash('sha256').update(String(value)).digest('hex'); }
 async function issueDashboardCode(guildId, userId) {
-  const code = crypto.randomBytes(4).toString('hex').toUpperCase();
+  const code = crypto.randomBytes(6).toString('hex').toUpperCase();
   const codeHash = hashCode(code);
   await supabaseRequest('bww_dashboard_logins', { method: 'POST', body: JSON.stringify({ guild_id: guildId, code_hash: codeHash, expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(), created_by: userId }) });
   return code;
