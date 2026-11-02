@@ -28,6 +28,7 @@ const panelCreateOptions = [
 const commands = [
   { name: 'nachricht', description: 'Sendet ein Components-V2-Embed.', options: [
     { name: 'text', description: 'Text der Nachricht', type: 3, required: true },
+    { name: 'titel', description: 'Optionaler Titel der Nachricht', type: 3, required: false },
     { name: 'bild', description: 'Optionale Bild-URL', type: 3, required: false }
   ]},
   { name: 'embed', description: 'Erstellt ein flexibles Components-V2-Embed.', options: [
