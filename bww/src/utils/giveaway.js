@@ -57,8 +57,15 @@ function drawWinners(g, excluded = []) {
   const pool = [...new Set(g.entries)].filter(id => !blocked.has(id));
   const drawn = [];
   while (pool.length && drawn.length < g.winners) {
-    const idx = crypto.randomInt(pool.length);
-    drawn.push(pool.splice(idx, 1)[0]);
+    const total = pool.reduce((sum, id) => sum + Math.max(1, Number(g.entryCounts?.[id]) || 1), 0);
+    let ticket = crypto.randomInt(total);
+    let selected = 0;
+    for (const id of pool) {
+      ticket -= Math.max(1, Number(g.entryCounts?.[id]) || 1);
+      if (ticket < 0) { selected = id; break; }
+    }
+    drawn.push(selected);
+    pool.splice(pool.indexOf(selected), 1);
   }
   return drawn;
 }
@@ -72,7 +79,7 @@ async function updateGiveawayMessage(client, g) {
   } catch {}
 }
 
-async function finalizeGiveaway(client, g) {
+async function finalizeGiveaway(client, g, actorId = null) {
   const list = loadGiveaways();
   const stored = list.find(x => x.id === g.id);
   const target = stored || g;
@@ -84,7 +91,7 @@ async function finalizeGiveaway(client, g) {
   target.endedAt = Date.now();
   saveGiveaways(list.map(x => (x.id === target.id ? target : x)));
   await recordDraw(target, winners, 'initial');
-  await recordGiveawayEvent(target, target.createdBy, 'ended', { winners, participantCount: target.entries.length });
+  await recordGiveawayEvent(target, actorId, 'ended', { winners, participantCount: target.entries.length });
   const container = new ContainerBuilder().setAccentColor(0x5865F2);
   container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`## 🎉 Giveaway beendet\n**Preis:** ${target.prize}\n**Gewinner:** ${winners.length ? winners.map(id => `<@${id}>`).join(', ') : 'Keine Teilnehmer 😔'}`));
   container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true));
@@ -97,7 +104,7 @@ async function finalizeGiveaway(client, g) {
   return winners;
 }
 
-async function rerollGiveaway(client, id) {
+async function rerollGiveaway(client, id, actorId = null) {
   const list = loadGiveaways();
   const g = list.find(x => x.id === id && !x.active);
   if (!g) return { ok: false, error: 'Giveaway nicht gefunden oder noch aktiv.' };
@@ -105,7 +112,7 @@ async function rerollGiveaway(client, id) {
   g.winnersDrawn = winners;
   g.winnerHistory = [...new Set([...(g.winnerHistory || []), ...winners])];
   await recordDraw(g, winners, 'reroll');
-  await recordGiveawayEvent(g, null, 'reroll', { winners, participantCount: g.entries.length });
+  await recordGiveawayEvent(g, actorId, 'reroll', { winners, participantCount: g.entries.length });
   const container = new ContainerBuilder().setAccentColor(0x5865F2);
   container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`## 🔁 Giveaway Reroll\n**Preis:** ${g.prize}\n**Neue Gewinner:** ${winners.length ? winners.map(uid => `<@${uid}>`).join(', ') : 'Keine Teilnehmer übrig 😔'}`));
   container.addActionRowComponents(new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`bww_giveaway_reroll_${g.id}`).setLabel('🔁 Neu ziehen').setStyle(ButtonStyle.Primary)));
@@ -127,7 +134,7 @@ async function syncGiveawayRecord(g) {
       id: g.id, guild_id: g.guildId, channel_id: g.channelId, message_id: g.messageId || null,
       prize: g.prize, winner_count: g.winners, end_at: new Date(g.endTime).toISOString(),
       status: g.active ? 'active' : 'ended', created_by: g.createdBy || null,
-      current_winners: g.winnersDrawn || [], winner_history: g.winnerHistory || [],
+      current_winners: g.winnersDrawn || [], winner_history: g.winnerHistory || [], ended_at: g.endedAt ? new Date(g.endedAt).toISOString() : null,
       required_role_id: g.requiredRoleId || null, min_account_age_days: g.minAccountAgeDays || 0,
       min_server_age_days: g.minServerAgeDays || 0, bonus_entries: g.bonusEntries || 0,
       bonus_role_id: g.bonusRoleId || null, entry_count: (g.entries || []).length, conditions: g.conditions || ''
