@@ -1,347 +1,313 @@
-const { ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, SeparatorSpacingSize, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits, MessageFlags } = require('discord.js');
-const { isAllowed } = require('../commands');
-const { getGuildSettings, saveGuildSettings } = require('../utils/database');
-const { embedV2, verifyComponents } = require('../utils/embeds');
-const { ticketContainer, createTicket, TICKET_REASONS } = require('../utils/tickets');
-const { loadGiveaways, saveGiveaways, giveawayContainer, startGiveaway, finalizeGiveaway, rerollGiveaway, updateGiveawayMessage } = require('../utils/giveaway');
-const { getPanel, setPanel, deletePanel, loadPanels, panelContainer, buttonResponseContainer, addPanelMessage } = require('../utils/panels');
-const { createStatusMessage, updateStatusMessage } = require('../utils/status');
+# BWW – Bundeswehr Waldstädt Discord-Bot
 
-const EPHEMERAL = { flags: MessageFlags.Ephemeral };
-const V2 = MessageFlags.IsComponentsV2;
-const EPHEMERAL_V2 = MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral;
+Der BWW-Bot ist der Discord-Bot für **Bundeswehr Waldstädt**. Er bündelt Nachrichten, Moderation, Verifizierung, Tickets, Giveaways, Umfragen, benutzerdefinierte Panels und Serverstatus in einem Bot.
 
-function hasGiveawayManagePermission(interaction, config) {
-  if (interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) return true;
-  const roles = config.permissions['giveaway'] || [];
-  return roles.some(id => interaction.member?.roles?.cache?.has(id));
-}
-function canCloseTicket(interaction, config) {
-  if (interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) return true;
-  if (config.ticket.roleId && interaction.member?.roles?.cache?.has(config.ticket.roleId)) return true;
-  if (interaction.channel?.name?.startsWith('ticket-') && interaction.channel?.permissionOverwrites?.cache?.has(interaction.user.id)) return true;
-  return false;
-}
+> **Wichtig:** Nachrichten, Panels, Tickets, Statusmeldungen und weitere gestaltete Bot-Ausgaben verwenden Discord **Components V2**. Der Bot setzt dafür keine klassischen Discord-Embeds ein.
 
-module.exports = async (interaction, client) => {
-  try {
-  if (interaction.isAutocomplete()) {
-    const focused = interaction.options.getFocused(true);
-    if (focused.name === 'farbe') {
-      const palette = [['Discord-Blau','#5865F2'],['Rot','#ED4245'],['Grün','#57F287'],['Gelb','#FEE75C'],['Lila','#9B59B6'],['Orange','#E67E22'],['Türkis','#1ABC9C'],['Pink','#EB459E'],['Weiß','#FFFFFF'],['Schwarz','#23272A'],['Dunkelgrau','#2F3136']];
-      const raw = String(focused.value || '').trim();
-      const query = raw.toLowerCase();
-      const matches = palette.filter(([name,hex]) => name.toLowerCase().includes(query) || hex.toLowerCase().includes(query));
-      const cleanHex = raw.replace(/^#/, '');
-      if (/^[0-9a-fA-F]{6}$/.test(cleanHex)) matches.unshift(['Benutzerdefiniert', `#${cleanHex.toUpperCase()}`]);
-      return interaction.respond(matches.slice(0,25).map(([name,value]) => ({ name: `${name} (${value})`, value })));
-    }
-    return interaction.respond([]);
-  }
-  const config = await getGuildSettings(interaction.guildId);
-  if (interaction.isButton() && interaction.customId === 'bww_verify') {
-    if (!config.verify.roleId) return interaction.reply({ content: '❌ Keine Verifizierungsrolle eingerichtet.', ...EPHEMERAL });
-    const role = interaction.guild.roles.cache.get(config.verify.roleId) || await interaction.guild.roles.fetch(config.verify.roleId).catch(() => null);
-    if (!role) return interaction.reply({ content: '❌ Die Verifizierungsrolle existiert nicht mehr.', ...EPHEMERAL });
-    if (interaction.member.roles.cache.has(role.id)) return interaction.reply({ content: '✅ Du bist bereits verifiziert.', ...EPHEMERAL });
-    try { await interaction.member.roles.add(role); } catch { return interaction.reply({ content: '❌ Ich konnte die Rolle nicht vergeben. Prüfe meine Rollenposition.', ...EPHEMERAL }); }
-    return interaction.reply({ content: '✅ Du wurdest erfolgreich verifiziert.', ...EPHEMERAL });
-  }
-  if (interaction.isButton() && interaction.customId === 'bww_ticket_close') {
-    if (!canCloseTicket(interaction, config)) return interaction.reply({ content: '❌ Du darfst dieses Ticket nicht schließen.', ...EPHEMERAL });
-    await interaction.reply({ content: '🔒 Ticket wird geschlossen und gelöscht…', ...EPHEMERAL });
-    setTimeout(() => interaction.channel.delete().catch(() => {}), 2000);
-    return;
-  }
-  if (interaction.isButton() && interaction.customId.startsWith('bww_panel_')) {
-    const parts = interaction.customId.split('_');
-    const idx = parseInt(parts.pop(), 10);
-    const name = parts.slice(2).join('_');
-    const panel = getPanel(name);
-    if (!panel || !panel.buttons[idx]) return interaction.reply({ content: '❌ Panel oder Button nicht gefunden.', ...EPHEMERAL });
-    const button = panel.buttons[idx];
-    const container = buttonResponseContainer(name, button);
-    return interaction.reply({ components: [container], flags: EPHEMERAL_V2, allowedMentions: { parse: [] } });
-  }
-  if (interaction.isButton() && interaction.customId.startsWith('bww_giveaway_')) {
-    const parts = interaction.customId.split('_'); const action = parts[2]; const id = parts.slice(3).join('_');
-    if (!['join', 'leave', 'end', 'reroll'].includes(action)) return;
-    const list = loadGiveaways(); const g = list.find(x => x.id === id);
-    if (action === 'join') {
-      if (!g || !g.active) return interaction.reply({ content: '❌ Dieses Giveaway ist bereits beendet.', ...EPHEMERAL });
-      if (g.entries.includes(interaction.user.id)) return interaction.reply({ content: '❌ Du nimmst bereits teil.', ...EPHEMERAL });
-      g.entries.push(interaction.user.id); saveGiveaways(list); await updateGiveawayMessage(client, g);
-      return interaction.reply({ content: '🎉 Du nimmst jetzt am Giveaway teil!', ...EPHEMERAL });
-    }
-    if (action === 'leave') {
-      if (!g || !g.active) return interaction.reply({ content: '❌ Dieses Giveaway ist bereits beendet.', ...EPHEMERAL });
-      const idx = g.entries.indexOf(interaction.user.id); if (idx === -1) return interaction.reply({ content: '❌ Du nimmst nicht an diesem Giveaway teil.', ...EPHEMERAL });
-      g.entries.splice(idx, 1); saveGiveaways(list); await updateGiveawayMessage(client, g);
-      return interaction.reply({ content: '👋 Du hast das Giveaway verlassen.', ...EPHEMERAL });
-    }
-    if (action === 'end' || action === 'reroll') {
-      if (!hasGiveawayManagePermission(interaction, config)) return interaction.reply({ content: '❌ Du darfst das Giveaway nicht verwalten.', ...EPHEMERAL });
-      if (action === 'end') {
-        if (!g || !g.active) return interaction.reply({ content: '❌ Dieses Giveaway ist bereits beendet.', ...EPHEMERAL });
-        const winners = await finalizeGiveaway(client, g);
-        return interaction.reply({ content: winners.length ? `✅ Giveaway beendet. Gewinner: ${winners.map(w => `<@${w}>`).join(', ')}` : '✅ Giveaway beendet. Keine Teilnehmer.', ...EPHEMERAL });
-      } else {
-        const res = await rerollGiveaway(client, id);
-        if (!res.ok) return interaction.reply({ content: `❌ ${res.error}`, ...EPHEMERAL });
-        const winText = res.winners.length ? res.winners.map(w => `<@${w}>`).join(', ') : 'Keine Teilnehmer übrig 😔';
-        return interaction.reply({ content: `🔁 Neu gezogen: ${winText}`, ...EPHEMERAL });
-      }
-    }
-  }
-  if (interaction.isStringSelectMenu() && interaction.customId === 'bww_ticket_select') {
-    const reason = TICKET_REASONS.find(r => r.value === interaction.values[0]);
-    const res = await createTicket(interaction.guild, config, interaction.user, reason ? reason.label : interaction.values[0]);
-    if (!res.ok) return interaction.reply({ content: `❌ ${res.error}`, ...EPHEMERAL });
-    return interaction.reply({ content: `✅ Ticket erstellt: ${res.channel}`, ...EPHEMERAL });
-  }
-  if (!interaction.isChatInputCommand()) return;
-  const command = interaction.commandName;
-  if (command.startsWith('setup-')) {
-    if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) return interaction.reply({ content: '❌ Nur Administratoren dürfen das Setup ändern.', ...EPHEMERAL });
-    if (command === 'setup-welcome') { config.welcome = { enabled: true, channelId: interaction.options.getChannel('channel').id, title: interaction.options.getString('title') || '', message: interaction.options.getString('text', true) }; await saveGuildSettings(interaction.guildId, config, interaction.user.id); return interaction.reply({ content: '✅ Welcome-System gespeichert.', ...EPHEMERAL }); }
-    if (command === 'setup-verify') { config.verify = { enabled: true, channelId: interaction.options.getChannel('channel').id, roleId: interaction.options.getRole('role').id, message: interaction.options.getString('text', true) }; await saveGuildSettings(interaction.guildId, config, interaction.user.id); return interaction.reply({ content: '✅ Verify-System gespeichert.', ...EPHEMERAL }); }
-    if (command === 'setup-ticket') { config.ticket = { enabled: true, categoryId: interaction.options.getChannel('kategorie').id, roleId: interaction.options.getRole('rolle').id }; await saveGuildSettings(interaction.guildId, config, interaction.user.id); return interaction.reply({ content: '✅ Ticket-System gespeichert.', ...EPHEMERAL }); }
-    if (command === 'setup-status') {
-      const channel = interaction.options.getChannel('channel');
-      try {
-        const sent = await createStatusMessage(channel, 'online', { reason: 'Initial' });
-        config.status = { enabled: true, channelId: channel.id, messageId: sent.id, mode: 'online' };
-        await saveGuildSettings(interaction.guildId, config, interaction.user.id);
-        return interaction.reply({ content: `✅ Status-Embed in ${channel} erstellt (🟢 Online).`, ...EPHEMERAL });
-      } catch (err) { return interaction.reply({ content: `❌ Status-Embed fehlgeschlagen: ${err.message}`, ...EPHEMERAL }); }
-    }
-    const name = interaction.options.getString('command', true); const role = interaction.options.getRole('role'); const allow = interaction.options.getBoolean('erlauben', true); config.permissions[name] ||= []; if (allow && !config.permissions[name].includes(role.id)) config.permissions[name].push(role.id); if (!allow) config.permissions[name] = config.permissions[name].filter(id => id !== role.id); await saveGuildSettings(interaction.guildId, config, interaction.user.id); return interaction.reply({ content: `✅ Rolle ${role} für /${name} ${allow ? 'erlaubt' : 'entfernt'}.`, ...EPHEMERAL });
-  }
-  if (command === 'restart') {
-    if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) return interaction.reply({ content: '❌ Nur Administratoren dürfen den Bot neu starten.', ...EPHEMERAL });
-    await interaction.reply({ content: '🔄 Bot wird neu gestartet…', ...EPHEMERAL }); setTimeout(() => process.exit(0), 1000); return;
-  }
-  if (command === 'wartung') {
-    if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
-    const aktiv = interaction.options.getBoolean('aktiv', true);
-    const grund = interaction.options.getString('grund') || '';
-    const mode = aktiv ? 'maintenance' : 'online';
-    config.status = config.status || {};
-    config.status.mode = mode;
-    await saveGuildSettings(interaction.guildId, config, interaction.user.id);
-    const ok = await updateStatusMessage(client, interaction.guildId, mode, { reason: grund });
-    return interaction.reply({ content: ok ? `${aktiv ? '🟡 Wartung aktiviert' : '🟢 Wartung deaktiviert'}${grund ? ': ' + grund : ''}` : `✅ Modus auf ${mode} gesetzt (kein Status-Channel konfiguriert).`, ...EPHEMERAL });
-  }
-  if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
-  if (command === 'panel-create') {
-    if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
-    const rawName = interaction.options.getString('name', true);
-    const name = rawName.toLowerCase().replace(/[^a-z0-9-_]/g, '').slice(0, 32);
-    if (!name) return interaction.reply({ content: '❌ Ungültiger Panel-Name (nur a-z0-9-_).', ...EPHEMERAL });
-    const intro = interaction.options.getString('intro') || '';
-    const buttons = [];
-    for (let i = 1; i <= 10; i++) {
-      const label = interaction.options.getString(`button${i}_label`);
-      const text = interaction.options.getString(`button${i}_text`);
-      if (label && text) buttons.push({ label: label.slice(0, 80), text });
-      else if (label || text) return interaction.reply({ content: `❌ Button ${i} braucht Label UND Text.`, ...EPHEMERAL });
-    }
-    if (!buttons.length) return interaction.reply({ content: '❌ Mindestens ein Button (Label+Text) nötig.', ...EPHEMERAL });
-    const panel = { intro: intro || `Panel ${name}`, buttons, messages: [], createdAt: Date.now(), createdBy: interaction.user.id };
-    setPanel(name, panel);
-    try { const sent = await interaction.channel.send({ components: [panelContainer(panel, name)], flags: V2, allowedMentions: { parse: [] } }); addPanelMessage(name, sent.channelId || interaction.channelId, sent.id); return interaction.reply({ content: `✅ Panel \`${name}\` gespeichert und gesendet (${buttons.length} Buttons).`, ...EPHEMERAL }); } catch (err) { return interaction.reply({ content: `❌ Panel gespeichert, Senden fehlgeschlagen: ${err.message}`, ...EPHEMERAL }); }
-  }
-  if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
-  if (command === 'panel-add-button') {
-    if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
-    const name = interaction.options.getString('name', true).toLowerCase();
-    const panel = getPanel(name);
-    if (!panel) return interaction.reply({ content: `❌ Panel \`${name}\` nicht gefunden.`, ...EPHEMERAL });
-    if (panel.buttons.length >= 50) return interaction.reply({ content: '❌ Max 50 Buttons erreicht.', ...EPHEMERAL });
-    const label = interaction.options.getString('label', true).slice(0, 80);
-    const text = interaction.options.getString('text', true);
-    panel.buttons.push({ label, text });
-    setPanel(name, panel);
-    return interaction.reply({ content: `✅ Button \`${label}\` zu Panel \`${name}\` hinzugefügt (${panel.buttons.length} total). Nutze \`/panel-send name:${name}\` zum Aktualisieren.`, ...EPHEMERAL });
-  }
-  if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
-  if (command === 'panel-send') {
-    if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
-    const name = interaction.options.getString('name', true).toLowerCase();
-    const panel = getPanel(name);
-    if (!panel) return interaction.reply({ content: `❌ Panel \`${name}\` nicht gefunden.`, ...EPHEMERAL });
-    try { const sent = await interaction.channel.send({ components: [panelContainer(panel, name)], flags: V2 }); addPanelMessage(name, sent.channelId || interaction.channelId, sent.id); return interaction.reply({ content: `✅ Panel \`${name}\` gesendet.`, ...EPHEMERAL }); } catch (err) { return interaction.reply({ content: `❌ Senden fehlgeschlagen: ${err.message}`, ...EPHEMERAL }); }
-  }
-  if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
-  if (command === 'panel-delete') {
-    if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
-    const name = interaction.options.getString('name', true).toLowerCase();
-    const panel = getPanel(name);
-    if (!panel) return interaction.reply({ content: `❌ Panel \`${name}\` nicht gefunden.`, ...EPHEMERAL });
-    let deletedCount = 0;
-    const msgs = panel.messages || [];
-    for (const m of msgs) {
-      try {
-        const ch = await client.channels.fetch(m.channelId).catch(() => null);
-        if (!ch || !ch.isTextBased()) continue;
-        const msg = await ch.messages.fetch(m.messageId).catch(() => null);
-        if (msg) { await msg.delete().catch(() => {}); deletedCount++; }
-      } catch {}
-    }
-    deletePanel(name);
-    return interaction.reply({ content: `✅ Panel \`${name}\` gelöscht (${deletedCount} Nachricht(en) entfernt).`, ...EPHEMERAL });
-  }
-  if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
-  if (command === 'panel-list') {
-    if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
-    const panels = loadPanels();
-    const names = Object.keys(panels);
-    if (!names.length) return interaction.reply({ content: '📭 Keine Panels gespeichert.', ...EPHEMERAL });
-    const container = new ContainerBuilder().setAccentColor(0x2F3136);
-    const lines = names.map(n => `• \`${n}\` – ${panels[n].buttons.length} Buttons – ${(panels[n].intro || '').slice(0, 80)}`).join('\n');
-    container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`## Gespeicherte Panels (${names.length})\n${lines}`));
-    return interaction.reply({ components: [container], flags: EPHEMERAL_V2 });
-  }
-  if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
-  if (command === 'kick') {
-    const member = interaction.options.getMember('user'); const reason = interaction.options.getString('grund') || 'Kein Grund angegeben';
-    if (!member) return interaction.reply({ content: '❌ Mitglied nicht gefunden.', ...EPHEMERAL });
-    if (!member.kickable) return interaction.reply({ content: '❌ Ich kann dieses Mitglied nicht kicken.', ...EPHEMERAL });
-    try { await member.kick(reason); } catch { return interaction.reply({ content: '❌ Kick fehlgeschlagen.', ...EPHEMERAL }); }
-    return interaction.reply({ content: `👢 ${member.user.tag} wurde gekickt.\n**Grund:** ${reason}`, ...EPHEMERAL });
-  }
-  if (command === 'ban') {
-    const user = interaction.options.getUser('user'); const reason = interaction.options.getString('grund') || 'Kein Grund angegeben';
-    if (!user) return interaction.reply({ content: '❌ Benutzer nicht gefunden.', ...EPHEMERAL });
-    try { await interaction.guild.bans.create(user.id, { reason }); } catch { return interaction.reply({ content: '❌ Ban fehlgeschlagen. Prüfe Rechte/Rollenposition.', ...EPHEMERAL }); }
-    return interaction.reply({ content: `🔨 ${user.tag} wurde gebannt.\n**Grund:** ${reason}`, ...EPHEMERAL });
-  }
-  if (command === 'unban') {
-    const user = interaction.options.getUser('user'); if (!user) return interaction.reply({ content: '❌ Benutzer nicht gefunden.', ...EPHEMERAL });
-    try { await interaction.guild.bans.remove(user.id); } catch { return interaction.reply({ content: '❌ Unban fehlgeschlagen (war der User gebannt?).', ...EPHEMERAL }); }
-    return interaction.reply({ content: `✅ ${user.tag} wurde entbannt.`, ...EPHEMERAL });
-  }
-  if (command === 'timeout') {
-    const member = interaction.options.getMember('user'); const minutes = interaction.options.getInteger('dauer'); const reason = interaction.options.getString('grund') || 'Kein Grund angegeben';
-    if (!member) return interaction.reply({ content: '❌ Mitglied nicht gefunden.', ...EPHEMERAL });
-    if (!member.moderatable) return interaction.reply({ content: '❌ Ich kann dieses Mitglied nicht pausieren.', ...EPHEMERAL });
-    const ms = minutes * 60 * 1000; try { await member.timeout(ms, reason); } catch { return interaction.reply({ content: '❌ Timeout fehlgeschlagen.', ...EPHEMERAL }); }
-    return interaction.reply({ content: `⏰ ${member.user.tag} wurde für ${minutes} Minute(n) pausiert.\n**Grund:** ${reason}`, ...EPHEMERAL });
-  }
-  if (command === 'giverole') {
-    const member = interaction.options.getMember('user'); const role = interaction.options.getRole('rolle');
-    if (!member) return interaction.reply({ content: '❌ Mitglied nicht gefunden.', ...EPHEMERAL });
-    if (!role) return interaction.reply({ content: '❌ Rolle nicht gefunden.', ...EPHEMERAL });
-    if (member.roles.cache.has(role.id)) return interaction.reply({ content: '❌ Der User hat die Rolle bereits.', ...EPHEMERAL });
-    try { await member.roles.add(role); } catch { return interaction.reply({ content: '❌ Rolle konnte nicht vergeben werden. Prüfe Hierarchie.', ...EPHEMERAL }); }
-    return interaction.reply({ content: `✅ ${member.user.tag} hat die Rolle ${role} erhalten.`, ...EPHEMERAL });
-  }
-  if (command === 'removerole') {
-    const member = interaction.options.getMember('user'); const role = interaction.options.getRole('rolle');
-    if (!member) return interaction.reply({ content: '❌ Mitglied nicht gefunden.', ...EPHEMERAL });
-    if (!role) return interaction.reply({ content: '❌ Rolle nicht gefunden.', ...EPHEMERAL });
-    if (!member.roles.cache.has(role.id)) return interaction.reply({ content: '❌ Der User hat diese Rolle nicht.', ...EPHEMERAL });
-    try { await member.roles.remove(role); } catch { return interaction.reply({ content: '❌ Rolle konnte nicht entfernt werden.', ...EPHEMERAL }); }
-    return interaction.reply({ content: `✅ ${member.user.tag} wurde die Rolle ${role} entfernt.`, ...EPHEMERAL });
-  }
-  if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
-  if (command === 'nachricht-wiederholen') {
-    if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) return interaction.reply({ content: '❌ Nur Administratoren dürfen wiederkehrende Nachrichten einrichten.', ...EPHEMERAL });
-    const text = interaction.options.getString('text', true).slice(0, 4000);
-    const amount = interaction.options.getInteger('intervall', true);
-    const unit = interaction.options.getString('einheit', true);
-    const multipliers = { minuten: 60_000, stunden: 3_600_000, tage: 86_400_000 };
-    const intervalMs = amount * multipliers[unit];
-    if (!multipliers[unit] || intervalMs < 60_000 || intervalMs > 365 * 86_400_000) return interaction.reply({ content: '❌ Ungültiges Intervall.', ...EPHEMERAL });
-    const channel = interaction.options.getChannel('kanal') || interaction.channel;
-    if (!channel?.isTextBased()) return interaction.reply({ content: '❌ Bitte einen Textkanal auswählen.', ...EPHEMERAL });
-    const attachment = interaction.options.getAttachment('bild');
-    const color = interaction.options.getString('farbe') || '#5865F2';
-    const id = Math.random().toString(36).slice(2, 8).toUpperCase();
-    const schedule = { id, active: true, channelId: channel.id, text, image: attachment?.url || '', color, intervalMs, intervalLabel: `${amount} ${unit}`, nextRunAt: new Date(Date.now() + intervalMs).toISOString(), createdAt: new Date().toISOString(), createdBy: interaction.user.id };
-    config.recurringMessages = [...(config.recurringMessages || []), schedule];
-    try {
-      await saveGuildSettings(interaction.guildId, config, interaction.user.id);
-      const container = embedV2({ description: text, image: schedule.image, color });
-      await channel.send({ components: [container], flags: V2, allowedMentions: { parse: [] } });
-      return interaction.reply({ content: `✅ Wiederholung eingerichtet (ID: \`${id}\`). Erste Nachricht wurde gesendet. Nächste Sendung in ${amount} ${unit}. Stoppen mit \`/wiederholung-stoppen id:${id}\`.`, ...EPHEMERAL });
-    } catch (err) { return interaction.reply({ content: `❌ Wiederholung konnte nicht eingerichtet werden: ${err.message}`, ...EPHEMERAL }); }
-  }
-  if (command === 'wiederholung-stoppen') {
-    if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) return interaction.reply({ content: '❌ Nur Administratoren dürfen Wiederholungen stoppen.', ...EPHEMERAL });
-    const id = interaction.options.getString('id', true).trim().toUpperCase();
-    const item = (config.recurringMessages || []).find(entry => entry.id === id && entry.active);
-    if (!item) return interaction.reply({ content: '❌ Keine aktive Wiederholung mit dieser ID gefunden.', ...EPHEMERAL });
-    item.active = false; item.stoppedAt = new Date().toISOString();
-    await saveGuildSettings(interaction.guildId, config, interaction.user.id);
-    return interaction.reply({ content: `🛑 Wiederholung \`${id}\` wurde deaktiviert.`, ...EPHEMERAL });
-  }
-  if (command === 'wiederholung-liste') {
-    if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) return interaction.reply({ content: '❌ Nur Administratoren dürfen Wiederholungen anzeigen.', ...EPHEMERAL });
-    const active = (config.recurringMessages || []).filter(entry => entry.active);
-    if (!active.length) return interaction.reply({ content: '📭 Es gibt keine aktiven Wiederholungen.', ...EPHEMERAL });
-    const lines = active.map(entry => `• ID \`${entry.id}\` – <#${entry.channelId}> – alle ${entry.intervalLabel}`).join('\n');
-    return interaction.reply({ content: `**Aktive Wiederholungen**\n${lines}`, ...EPHEMERAL });
-  }
-  if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
-  if (command === 'embed') {
-    const text = interaction.options.getString('text', true);
-    const title = interaction.options.getString('titel') || '';
-    const attachment = interaction.options.getAttachment('bild');
-    const image = attachment?.url || interaction.options.getString('bild_url') || '';
-    const thumbnail = interaction.options.getString('thumbnail') || '';
-    const color = interaction.options.getString('farbe') || '';
-    const footer = interaction.options.getString('footer') || '';
-    const container = embedV2({ title, description: text, image, thumbnail, color, footer });
-    try {
-      await interaction.channel.send({ components: [container], flags: V2, allowedMentions: { parse: [] } });
-      return interaction.reply({ content: '✅ Components-V2-Embed gesendet.', ...EPHEMERAL });
-    } catch (err) {
-      return interaction.reply({ content: `❌ Components-V2-Embed konnte nicht gesendet werden: ${err.message}`, ...EPHEMERAL });
-    }
-  }
-  if (command === 'nachricht') {
-    const text = interaction.options.getString('text', true);
-    const image = interaction.options.getString('bild') || '';
-    const container = embedV2({ description: text, image });
-    try {
-      await interaction.channel.send({ components: [container], flags: V2, allowedMentions: { parse: [] } });
-      return interaction.reply({ content: '✅ Components-V2-Embed gesendet.', ...EPHEMERAL });
-    } catch (err) {
-      return interaction.reply({ content: `❌ Components-V2-Embed konnte nicht gesendet werden: ${err.message}`, ...EPHEMERAL });
-    }
-  }
-  if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
-  if (command === 'ticket') {
-    try { await interaction.channel.send({ components: [ticketContainer(config)], flags: V2 }); return interaction.reply({ content: '✅ Ticket-Panel gesendet.', ...EPHEMERAL }); } catch (err) { return interaction.reply({ content: `❌ Ticket-Panel fehlgeschlagen: ${err.message}`, ...EPHEMERAL }); }
-  }
-  if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
-  if (command === 'giveaway') {
-    const prize = interaction.options.getString('preis', true); const winners = Math.max(1, interaction.options.getInteger('gewinner') || 1); const durationMs = interaction.options.getInteger('dauer') * 1000 || 60000;
-    try { await startGiveaway(interaction.channel, prize, durationMs, winners); return interaction.reply({ content: '✅ Giveaway gestartet!', ...EPHEMERAL }); } catch (err) { return interaction.reply({ content: `❌ Giveaway fehlgeschlagen: ${err.message}`, ...EPHEMERAL }); }
-  }
-  if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
-  if (command === 'verify') {
-    try { config.verify.channelId = interaction.channelId; config.verify.enabled = true; await saveGuildSettings(interaction.guildId, config, interaction.user.id); await interaction.channel.send({ components: [verifyComponents(config)], flags: V2, allowedMentions: { parse: [] } }); return interaction.reply({ content: '✅ Verify-Panel gesendet.', ...EPHEMERAL }); } catch (err) { return interaction.reply({ content: `❌ Verify-Panel fehlgeschlagen: ${err.message}`, ...EPHEMERAL }); }
-  }
-  if (command === 'setup') {
-    const container = new ContainerBuilder().setAccentColor(0x2F3136);
-    container.addTextDisplayComponents(new TextDisplayBuilder().setContent('## BWW Setup\n`/setup-welcome` [channel] [text] [title?] → Welcome\n`/setup-verify` → Verify\n`/setup-ticket` [kategorie] [rolle] → Ticket\n`/setup-status` [channel] → Status-Embed\n`/setup-permission` → Command-Berechtigungen\n`/restart` → Bot neu starten\n`/wartung` → Wartung an/aus\n`/panel-create` → Custom Panel (10 Buttons) speichern+senden\n`/panel-add-button` → Button hinzufügen\n`/panel-send`/`/panel-delete`/`/panel-list` → Panels verwalten\n`/kick`, `/ban`, `/unban`, `/timeout` → Moderation\n`/giverole`, `/removerole` → Rollen'));
-    container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true));
-    container.addTextDisplayComponents(new TextDisplayBuilder().setContent('**Welcome-Platzhalter:**\n`{user}` → Ping\n`{username}` → Name\n`{displayname}` → Server-Nickname\n`{server}` → Servername\n`{id}` → User-ID\n`{count}` → Mitgliederzahl\n\nDer Avatar des Users erscheint automatisch oben rechts.'));
-    return interaction.reply({ components: [container], flags: EPHEMERAL_V2 });
-  }
-  } catch (err) {
-    console.error('Interaction Handler Fehler:', err.stack || err.message);
-    if (interaction.isRepliable() && !interaction.replied && !interaction.deferred) {
-      await interaction.reply({ content: '❌ Unerwarteter Fehler.', ...EPHEMERAL }).catch(() => {});
-    }
-  }
-};
+## Inhaltsverzeichnis
 
-## Neue Funktionen
+- [Voraussetzungen](#voraussetzungen)
+- [Installation und Start](#installation-und-start)
+- [Umgebungsvariablen](#umgebungsvariablen)
+- [Supabase einrichten](#supabase-einrichten)
+- [Ersteinrichtung auf Discord](#ersteinrichtung-auf-discord)
+- [Slash-Commands](#slash-commands)
+- [Berechtigungen](#berechtigungen)
+- [Funktionen im Detail](#funktionen-im-detail)
+- [Lokale Bot-Daten](#lokale-bot-daten)
+- [Fehlerbehebung](#fehlerbehebung)
 
-- `/nachricht-wiederholen` erstellt eine dauerhaft gespeicherte Nachricht mit Intervall in Minuten, Stunden oder Tagen. Der Bot sendet die erste Nachricht direkt und wiederholt sie anschließend automatisch.
-- `/wiederholung-stoppen` deaktiviert eine Wiederholung anhand ihrer ID; `/wiederholung-liste` zeigt aktive Wiederholungen.
-- `/embed` akzeptiert ein Bild als Discord-Dateianhang (PC oder Mobilgerät). Für externe Bild-URLs kann weiterhin `bild_url` verwendet werden.
-- Das Feld `farbe` bietet Farb-Vorschläge und akzeptiert eigene HEX-Werte (z. B. `#5865F2`).
+## Voraussetzungen
+
+- Node.js **24.17.0 oder neuer**
+- Ein Discord-Bot mit aktiviertem **Server Members Intent**
+- Bot-Einladung mit den benötigten Server- und Kanalberechtigungen
+- Supabase-Projekt für die serverbezogenen Einstellungen
+- Zugriff auf das Repository und die BWW-Quelldateien
+
+Die Abhängigkeiten werden im Hauptverzeichnis des Multi-Bot-Repositories verwaltet. Das Verzeichnis `bww/` besitzt deshalb keine eigene vollständige Dependency-Liste.
+
+## Installation und Start
+
+### Betrieb über den Multi-Bot-Loader (empfohlen)
+
+Der BWW-Bot ist in das gemeinsame Repository integriert. Der Start erfolgt im Repository-Hauptverzeichnis:
+
+```bash
+npm install
+npm start
+```
+
+Der zentrale Loader synchronisiert die vorgesehenen Bot-Dateien und startet die konfigurierten Prozesse. Für den normalen KataBump-Betrieb sollte der im Repository eingerichtete Startprozess verwendet werden.
+
+### BWW direkt starten
+
+Wenn die Abhängigkeiten bereits im Repository-Hauptverzeichnis installiert sind, kann der BWW-Einstiegspunkt direkt gestartet werden:
+
+```bash
+node bww/src/index.js
+```
+
+Der Bot lädt seine eigene Konfigurationsdatei aus `bww/.env`.
+
+## Umgebungsvariablen
+
+Lege die benötigten Variablen in der für BWW vorgesehenen Datei `bww/.env` beziehungsweise in der Prozessumgebung des Hosters an:
+
+| Variable | Erforderlich | Beschreibung |
+|---|---:|---|
+| `DISCORD_TOKEN` | Ja | Bot-Token des BWW-Discord-Bots |
+| `SUPABASE_URL` | Für Speicherung | URL des Supabase-Projekts |
+| `SUPABASE_SECRET_KEY` | Für Speicherung | Serverseitiger Supabase-Schlüssel mit Zugriff auf die benötigte Tabelle |
+
+**Sicherheit:**
+- Tokens und Schlüssel niemals committen oder in Discord veröffentlichen.
+- Keine Supabase-Schlüssel mit privilegierten Rechten an Clients oder öffentliche Webseiten ausliefern.
+- Bei Verdacht auf Offenlegung betroffene Zugangsdaten im jeweiligen Anbieter erneuern.
+- Die Datei `.env` gehört nicht in Git.
+
+Ohne vollständige Supabase-Konfiguration kann der Bot zwar Standardwerte laden, Einstellungen, die gespeichert werden müssen, können dann aber nicht dauerhaft eingerichtet werden.
+
+## Supabase einrichten
+
+Der Bot speichert die serverbezogenen Einstellungen in der Tabelle:
+
+```text
+bww_guild_settings
+```
+
+Der Code erwartet folgende Spalten:
+
+| Spalte | Verwendung |
+|---|---|
+| `guild_id` | Discord-Server-ID; eindeutiger Schlüssel |
+| `settings` | JSONB mit den Einstellungen des Servers |
+| `updated_by` | Discord-ID des auslösenden Benutzers beziehungsweise des Systems |
+| `updated_at` | Zeitpunkt der letzten Änderung |
+
+Die Tabelle muss für den vom Bot verwendeten serverseitigen Supabase-Schlüssel les- und beschreibbar sein. Der Bot greift über die Supabase-REST-Schnittstelle darauf zu.
+
+In `settings` werden unter anderem Welcome-, Verify-, Ticket- und Status-Einstellungen, Command-Berechtigungen sowie wiederkehrende Nachrichten gespeichert.
+
+## Ersteinrichtung auf Discord
+
+1. Lade den Bot auf deinen Discord-Server ein.
+2. Stelle sicher, dass seine Rolle oberhalb der Rollen liegt, die er verwalten soll.
+3. Gib ihm mindestens die für die aktivierten Funktionen benötigten Berechtigungen, beispielsweise Nachrichten senden, Nachrichtenverlauf lesen, Kanäle verwalten und Rollen verwalten.
+4. Trage die Umgebungsvariablen ein und starte den Bot.
+5. Beim Start registriert der Bot seine Slash-Commands global bei Discord.
+6. Führe die Setup-Commands als Serveradministrator aus.
+
+Die wichtigsten Setup-Schritte:
+
+- `/setup-welcome` – Begrüßungskanal und Begrüßungstext konfigurieren.
+- `/setup-verify` – Verifizierungskanal und Verifizierungsrolle konfigurieren.
+- `/setup-ticket` – Ticket-Kategorie und Support-Rolle konfigurieren.
+- `/setup-status` – Statusnachricht in einem Textkanal erstellen.
+- `/setup-permission` – Rollen für unterstützte Commands freischalten.
+
+## Slash-Commands
+
+Die folgende Übersicht beschreibt die im aktuellen Command-Register definierten Befehle.
+
+### Nachrichten und Gestaltung
+
+| Command | Beschreibung |
+|---|---|
+| `/nachricht` | Sendet eine Components-V2-Nachricht mit Text sowie optionalem Titel und Bild-URL. |
+| `/embed` | Erstellt eine gestaltete Components-V2-Nachricht mit Titel, Text, Bild, Thumbnail, Farbe und Footer. Ein Bild kann als URL oder Upload angegeben werden. |
+| `/nachricht-wiederholen` | Richtet eine wiederkehrende Nachricht mit Intervall, Einheit und optionalem Kanal, Farbe und Bild ein. |
+| `/wiederholung-stoppen` | Stoppt eine gespeicherte wiederkehrende Nachricht anhand ihrer ID. |
+| `/wiederholung-liste` | Zeigt die gespeicherten wiederkehrenden Nachrichten. |
+
+**Beispiele:**
+
+```text
+/nachricht text: Willkommen bei Bundeswehr Waldstädt titel: BWW | Bundeswehr Waldstädt
+/embed text: Wichtige Ankündigung titel: Information farbe: #5865F2
+/nachricht-wiederholen text: Bitte lest die Regeln intervall: 2 einheit: stunden
+```
+
+Bei `/nachricht-wiederholen` sind als Einheiten Minuten, Stunden und Tage verfügbar. Das Intervall muss mindestens 1 betragen. Die wiederkehrenden Nachrichten werden serverbezogen in Supabase gespeichert und vom Scheduler regelmäßig geprüft.
+
+### Panels
+
+| Command | Beschreibung |
+|---|---|
+| `/panel-create` | Erstellt und sendet ein benutzerdefiniertes Panel mit Intro und bis zu 10 direkt konfigurierbaren Buttons. |
+| `/panel-send` | Sendet ein bereits gespeichertes Panel erneut. |
+| `/panel-add-button` | Fügt einem gespeicherten Panel einen weiteren Button hinzu. |
+| `/panel-list` | Zeigt alle gespeicherten Panels. |
+| `/panel-delete` | Löscht ein Panel und entfernt die vom Bot gespeicherten Panel-Nachrichten, soweit sie erreichbar sind. |
+
+Bei `/panel-create` müssen für jeden Button sowohl ein Label als auch ein Antworttext angegeben werden. Weitere Buttons können mit `/panel-add-button` hinzugefügt werden. Die gespeicherten Panels liegen lokal in `bww/config/panels.json`.
+
+### Verifizierung, Tickets und Community
+
+| Command | Beschreibung |
+|---|---|
+| `/setup-welcome` | Konfiguriert den Begrüßungskanal, den Text und optional einen Titel. |
+| `/setup-verify` | Konfiguriert den Verifizierungskanal, die Rolle und den Nachrichtentext. |
+| `/verify` | Sendet das konfigurierte Verifizierungs-Panel. |
+| `/setup-ticket` | Konfiguriert die Ticket-Kategorie und die Support-Rolle. |
+| `/ticket` | Sendet das Ticket-Panel. |
+| `/umfrage` | Erstellt eine Umfrage mit zwei bis fünf Antwortoptionen und Live-Zähler. |
+
+Ticket-Gründe im aktuellen System:
+- Allgemeine Frage
+- Problem / Bug
+- Bewerbung
+- Spieler melden
+- Sonstiges
+
+Ein Ticket wird als eigener, zugriffsbeschränkter Textkanal erstellt. Der Ersteller und die konfigurierte Support-Rolle erhalten Zugriff. Der Ticket-Schließen-Button löscht den Ticket-Kanal nach Bestätigung.
+
+### Giveaways
+
+| Command | Beschreibung |
+|---|---|
+| `/giveaway` | Startet ein Giveaway mit Preis, Laufzeit in Sekunden und optionaler Gewinneranzahl. |
+
+Teilnehmer können über die Giveaway-Schaltflächen teilnehmen oder ihre Teilnahme zurückziehen. Das Giveaway kann automatisch nach Ablauf enden. Berechtigte Mitarbeiter können es vorzeitig beenden oder nach Ende eine neue Ziehung durchführen.
+
+Giveaway-Daten werden lokal in `bww/config/giveaways.json` gespeichert. Bei einem Neustart prüft der Scheduler aktive Giveaways und beendet abgelaufene Verlosungen.
+
+### Status und Wartung
+
+| Command | Beschreibung |
+|---|---|
+| `/setup-status` | Erstellt die Statusnachricht in einem ausgewählten Textkanal. |
+| `/wartung` | Aktiviert oder deaktiviert den Wartungsmodus und aktualisiert die Statusnachricht. |
+
+Unterstützte Status:
+- 🟢 Online
+- 🟡 Wartungsarbeiten
+- 🔴 Offline
+
+Die Statusnachricht wird regelmäßig aktualisiert. Beim regulären Herunterfahren versucht der Bot, den Status auf Offline zu setzen.
+
+### Moderation und Rollenverwaltung
+
+| Command | Beschreibung |
+|---|---|
+| `/kick` | Entfernt ein Mitglied vom Server. |
+| `/ban` | Bannt einen Benutzer. |
+| `/unban` | Hebt einen Ban anhand des Benutzers auf. |
+| `/timeout` | Versetzt ein Mitglied für eine angegebene Anzahl Minuten in den Timeout. |
+| `/giverole` | Gibt einem Mitglied eine Rolle. |
+| `/removerole` | Entfernt eine Rolle von einem Mitglied. |
+
+### Verwaltung und Hilfe
+
+| Command | Beschreibung |
+|---|---|
+| `/setup` | Zeigt die Setup-Hilfe. |
+| `/setup-permission` | Erlaubt oder entfernt eine Rolle für einen unterstützten Command. |
+| `/restart` | Beendet den Bot-Prozess kontrolliert über den Host-Prozessmanager, damit dieser ihn neu starten kann. |
+
+## Berechtigungen
+
+Es gibt zwei Ebenen:
+
+1. **Discord-Administrator:** Administratoren dürfen die Setup-Commands ausführen. Auch `/restart` ist Administratoren vorbehalten.
+2. **Command-Rollen:** Für Commands, die die zentrale Berechtigungsprüfung verwenden, können zusätzliche Rollen mit `/setup-permission` freigeschaltet werden. Administratoren sind davon ausgenommen.
+
+Wichtige Sonderfälle:
+- `/nachricht-wiederholen` ist zusätzlich ausdrücklich auf Administratoren beschränkt.
+- Giveaway-Verwaltungsaktionen (vorzeitiges Beenden und erneute Ziehung) benötigen Administratorrechte oder eine für `giveaway` freigeschaltete Rolle.
+- Das Schließen eines Tickets ist für Administratoren, die konfigurierte Support-Rolle und den Ticket-Ersteller möglich.
+- Setup-Commands können nur Administratoren verwenden.
+
+Die Bot-Rolle muss in der Discord-Rollenhierarchie oberhalb der Rollen liegen, die der Bot vergeben oder entfernen soll.
+
+## Funktionen im Detail
+
+### Components V2
+
+Die zentrale Implementierung befindet sich in `bww/src/utils/embeds.js`. Unterstützte Bausteine sind unter anderem:
+- Textbereiche und Titel
+- Trenner
+- Mediengalerien
+- Bereiche mit Thumbnail oder Button
+- Button-Reihen
+- Auswahlmenüs
+- Akzentfarben
+
+Die Commands `/nachricht` und `/embed` verwenden denselben Components-V2-Builder.
+
+### Platzhalter im Welcome-Text
+
+Für `/setup-welcome` sind diese Platzhalter verfügbar:
+
+| Platzhalter | Bedeutung |
+|---|---|
+| `{user}` | Erwähnung des neuen Mitglieds |
+| `{username}` | Discord-Benutzername |
+| `{displayname}` | Anzeigename |
+| `{server}` | Servername |
+| `{id}` | Discord-Benutzer-ID |
+| `{count}` | Aktuelle Mitgliederanzahl |
+
+Beispiel:
+
+```text
+Willkommen {user} auf {server}! Du bist Mitglied Nummer {count}.
+```
+
+### Status-Aktualisierung
+
+Der Bot synchronisiert den konfigurierten Statuskanal beim Start und danach regelmäßig. Falls die Statusnachricht gelöscht wurde, versucht der Bot, sie neu zu erstellen.
+
+## Lokale Bot-Daten
+
+Folgende Dateien werden vom Bot zur Laufzeit verwendet beziehungsweise angelegt:
+
+| Datei | Inhalt |
+|---|---|
+| `bww/config/panels.json` | Gespeicherte Custom-Panels und zugehörige Nachrichten-IDs |
+| `bww/config/giveaways.json` | Giveaways, Teilnahmen und Gewinnerhistorie |
+
+Diese Dateien enthalten Laufzeitdaten. Bei Backups müssen sie zusammen mit der Supabase-Konfiguration berücksichtigt werden. Sie sollten nicht versehentlich durch Deployments oder Synchronisationen überschrieben werden.
+
+## Fehlerbehebung
+
+### Bot startet nicht
+
+- Prüfe, ob `DISCORD_TOKEN` gesetzt ist.
+- Prüfe die Node.js-Version (mindestens 24.17.0).
+- Prüfe die Start- und Prozesslogs des Hosters.
+
+### Slash-Commands fehlen oder sind veraltet
+
+- Prüfe die Logs auf Fehler bei der Slash-Command-Registrierung.
+- Der Bot registriert Commands beim Start global bei Discord.
+- Nach Änderungen an `bww/src/commands/index.js` den BWW-Prozess neu starten und die Aktualisierung der globalen Commands abwarten.
+
+### Einstellungen werden nicht gespeichert
+
+- Prüfe `SUPABASE_URL` und `SUPABASE_SECRET_KEY`.
+- Prüfe, ob die Tabelle `bww_guild_settings` mit den erwarteten Spalten existiert.
+- Prüfe die Berechtigungen des serverseitigen Supabase-Schlüssels und die Supabase-Logs.
+
+### Rollen können nicht vergeben werden
+
+- Prüfe, ob der Bot die Berechtigung **Rollen verwalten** besitzt.
+- Verschiebe die Bot-Rolle in der Rollenliste über die Zielrolle.
+
+### Tickets können nicht erstellt werden
+
+- Prüfe die Konfiguration mit `/setup-ticket`.
+- Prüfe, ob die ausgewählte Kategorie noch existiert.
+- Prüfe, ob der Bot Kanäle verwalten darf.
+
+### Components V2-Nachrichten schlagen fehl
+
+- Prüfe, ob der Bot aktuelle Discord.js-Abhängigkeiten aus dem Repository verwendet.
+- Prüfe Bild-URLs und die Inhalte der Nachricht.
+- Prüfe die Fehlermeldung in den Bot-Logs.
+
+---
+
+**Projekt:** Bundeswehr Waldstädt (BWW)  
+**Repository:** [Teufel2211/Discord-Bots](https://github.com/Teufel2211/Discord-Bots)  
+**Bot-Verzeichnis:** `bww/`
