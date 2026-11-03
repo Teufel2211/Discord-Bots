@@ -69,6 +69,7 @@ code{padding:2px 5px;border-radius:5px;background:#263528;color:#c8dda9;font:11p
 .settings-json{max-height:650px;overflow:auto;padding:15px;border:1px solid var(--line);border-radius:9px;background:#0d1510;color:#c8d9bf;font-size:11px;white-space:pre-wrap;overflow-wrap:anywhere}
 .app-footer{display:flex;justify-content:space-between;gap:12px;padding:23px 0 4px;color:#5f7062;font-size:8px;font-weight:800;letter-spacing:.15em}.app-footer b{color:#84977c}
 .login-page{min-height:100vh;display:grid;place-items:center;padding:20px;background:radial-gradient(ellipse at 50% 0%,#263722 0%,#101713 50%,#0b100e 100%)}
+.login-page main.login{width:min(100%,440px);min-height:0;margin:0;padding:34px;align-self:center;justify-self:center;}
 .login{width:min(100%,440px);padding:34px;border:1px solid #3a4d3a;border-radius:16px;background:linear-gradient(145deg,#1b281e,#121a15);box-shadow:0 28px 90px #0008}
 .login .brand{margin:0 0 28px;padding:0 0 20px;border-bottom:1px solid var(--line)}.login h1{font-size:28px;margin:8px 0 12px}.login p{color:var(--muted);font-size:12px;margin-bottom:23px}.login form{display:grid;gap:14px;margin-bottom:18px}.login .button{width:100%}
 .page-loading main{opacity:.75;transition:opacity .12s}.page-loading main:before{content:"";position:absolute;z-index:5;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--accent),transparent);animation:loading 1s linear infinite}
