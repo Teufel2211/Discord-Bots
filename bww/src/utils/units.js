@@ -94,6 +94,7 @@ async function refreshUnitRoster(guild) {
     settings.unitRoster = { ...roster, channelId: channel.id, messageId: message.id };
     await saveGuildSettings(guild.id, settings);
   }
+  if (!message.pinned) await message.pin().catch(error => console.error('[BWW Einheiten] Liste konnte nicht angepinnt werden:', error.message));
   return { messageId: message.id, channelId: channel.id, unitCount: units.length };
 }
 
@@ -108,8 +109,8 @@ async function handleUnitCommand(interaction, config) {
     if (!channel.isTextBased() || !channel.messages) return interaction.reply({ content: '❌ Bitte wähle einen normalen Textkanal.', ...EPHEMERAL });
     const me = await interaction.guild.members.fetchMe();
     const permissions = channel.permissionsFor(me);
-    if (!permissions?.has([PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.EmbedLinks, PermissionsBitField.Flags.ReadMessageHistory])) {
-      return interaction.reply({ content: '❌ Mir fehlen Rechte: Kanal ansehen, Nachrichten senden, Links einbetten und Nachrichtenverlauf lesen.', ...EPHEMERAL });
+    if (!permissions?.has([PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.EmbedLinks, PermissionsBitField.Flags.ReadMessageHistory, PermissionsBitField.Flags.ManageMessages])) {
+      return interaction.reply({ content: '❌ Mir fehlen Rechte: Kanal ansehen, Nachrichten senden, Links einbetten, Nachrichtenverlauf lesen und Nachrichten verwalten (zum Anpinnen).', ...EPHEMERAL });
     }
     const settings = await getGuildSettings(interaction.guildId);
     const previousRoster = settings.unitRoster || {};
