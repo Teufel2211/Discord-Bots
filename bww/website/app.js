@@ -13,7 +13,7 @@ const SUPABASE_URL = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
 const SUPABASE_KEY = process.env.SUPABASE_SECRET_KEY || '';
 const COOKIE = 'bww_dashboard_session';
 const SESSION_DAYS = 7;
-const ACTIONS = new Set(['send_message', 'embed_send', 'embed_edit', 'raid_lockdown', 'raid_restore', 'dm_send', 'dm_thread']);
+const ACTIONS = new Set(['send_message', 'embed_send', 'embed_edit', 'raid_lockdown', 'raid_restore', 'dm_send', 'dm_thread', 'unit_roster_refresh']);
 const loginAttempts = new Map();
 
 function escapeHtml(value) {
@@ -205,9 +205,11 @@ app.post('/personalakten/event', requireSession, async (req, res) => {
 
 app.get('/einheiten', requireSession, async (req,res) => {
   const g=req.dashboardSession.guild_id;
-  const units=await db('bww_units?select=id,name,unit_type,parent_id,responsibilities&guild_id=eq.'+g+'&order=unit_type.asc,name.asc&limit=100',{headers:{Prefer:'return=representation'}});
+  const [units,settings]=await Promise.all([db('bww_units?select=id,name,unit_type,parent_id,responsibilities&guild_id=eq.'+g+'&order=unit_type.asc,name.asc&limit=100',{headers:{Prefer:'return=representation'}}),getSettings(g)]);
   const options=[['','Keine übergeordnete Einheit'],...units.map(u=>[u.id,u.name+' ('+u.unit_type+')'])];
-  const body=card('Neue Einheit',form('/einheiten/create',select('Typ','unit_type',[['kompanie','Kompanie'],['zug','Zug'],['gruppe','Gruppe']]) + field('Name','name','','text',true) + select('Übergeordnete Einheit','parent_id',options) + field('Zuständigkeit','responsibilities') + button('Einheit erstellen'),'form-grid'))+card('Mitglied zuweisen',form('/einheiten/member',select('Einheit','unit_id',units.map(u=>[u.id,u.name]))+field('Discord User-ID','user_id','','text',true)+select('Position','position',[['mitglied','Mitglied'],['leiter','Leiter'],['stellvertreter','Stellvertreter']])+button('Mitglied zuweisen'),'form-grid'))+card('Einheitenstruktur',table(['Name','Typ','Übergeordnet','Zuständigkeit'],units.map(u=>[escapeHtml(u.name),escapeHtml(u.unit_type),escapeHtml(units.find(p=>p.id===u.parent_id)?.name||'—'),escapeHtml(u.responsibilities||'—')])));
+  const roster=settings.unitRoster||{};
+  const rosterCard=card('Permanente öffentliche Einheitenliste','<p class="muted">' + (roster.channelId ? 'Die automatisch gepflegte Liste ist für alle Mitglieder in <code>#' + escapeHtml(roster.channelId) + '</code> veröffentlicht.' : 'Noch kein öffentlicher Listen-Kanal eingerichtet.') + '</p><p class="muted">Zum Einrichten oder Wechseln des Kanals im Discord <code>/einheit-kanal</code> verwenden. Die Liste zeigt Kommandeure, Stellvertretungen und Mitglieder und wird nach Änderungen automatisch aktualisiert.</p>');
+  const body=rosterCard+card('Neue Einheit',form('/einheiten/create',select('Typ','unit_type',[['kompanie','Kompanie'],['zug','Zug'],['gruppe','Gruppe']]) + field('Name','name','','text',true) + select('Übergeordnete Einheit','parent_id',options) + field('Zuständigkeit','responsibilities') + button('Einheit erstellen'),'form-grid'))+card('Mitglied zuweisen',form('/einheiten/member',select('Einheit','unit_id',units.map(u=>[u.id,u.name]))+field('Discord User-ID','user_id','','text',true)+select('Position','position',[['mitglied','Mitglied'],['leiter','Kommandeur'],['stellvertreter','Stellvertretender Kommandeur']])+button('Mitglied zuweisen'),'form-grid'))+card('Einheitenstruktur',table(['Name','Typ','Übergeordnet','Zuständigkeit'],units.map(u=>[escapeHtml(u.name),escapeHtml(u.unit_type),escapeHtml(units.find(p=>p.id===u.parent_id)?.name||'—'),escapeHtml(u.responsibilities||'—')])));
   res.send(page('Einheiten',body,req.dashboardSession));
 });
 app.post('/einheiten/create',requireSession,async(req,res)=>{
@@ -220,6 +222,7 @@ app.post('/einheiten/create',requireSession,async(req,res)=>{
     if(!parents.length || parents[0].unit_type!==(type==='zug'?'kompanie':'zug'))return res.status(400).send('Die übergeordnete Einheit passt nicht zur Hierarchie.');
   }
   await db('bww_units',{method:'POST',body:JSON.stringify({guild_id:g,unit_type:type,name,parent_id:parent,responsibilities:String(req.body.responsibilities||'').slice(0,1000),created_by:req.dashboardSession.user_id})});
+  const rosterSettings=await getSettings(g); if(rosterSettings.unitRoster?.channelId) await queueAction(req,'unit_roster_refresh',{});
   res.redirect('/einheiten');
 });
 
@@ -230,6 +233,7 @@ app.post('/einheiten/member',requireSession,async(req,res)=>{
   if(!unit.length)return res.status(404).send('Einheit nicht gefunden.');
   await db('bww_unit_members?on_conflict=unit_id,user_id',{method:'POST',headers:{Prefer:'resolution=merge-duplicates,return=minimal'},body:JSON.stringify({guild_id:g,unit_id:unitId,user_id:userId,position,assigned_by:req.dashboardSession.user_id})});
   await db('bww_unit_audit_logs',{method:'POST',body:JSON.stringify({guild_id:g,unit_id:unitId,actor_id:req.dashboardSession.user_id,action:'member_assigned_dashboard',details:{userId,position}})});
+  const rosterSettings=await getSettings(g); if(rosterSettings.unitRoster?.channelId) await queueAction(req,'unit_roster_refresh',{});
   res.redirect('/einheiten');
 });
 

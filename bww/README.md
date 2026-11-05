@@ -169,12 +169,19 @@ Das Einheiten-System bildet die Organisationsstruktur **Kompanie → Zug → Gru
 | Command | Beschreibung |
 |---|---|
 | `/einheit-erstellen` | Erstellt eine Kompanie, einen Zug unter einer Kompanie oder eine Gruppe unter einem Zug. |
-| `/einheit-liste` | Zeigt alle Einheiten mit Führung und Mitgliederzahl. |
+| `/einheit-kanal` | Veröffentlicht eine permanente Einheitenübersicht in einem öffentlichen Textkanal und aktualisiert sie automatisch. |
+| `/einheit-liste` | Zeigt alle Einheiten mit Kommandeuren, Stellvertretungen und Mitgliedern öffentlich im Kanal des Aufrufs. |
 | `/einheit-info` | Zeigt die vollständigen Daten einer Einheit einschließlich Mitglieder und Zuständigkeiten. |
 | `/einheit-bearbeiten` | Ändert den Namen oder die Zuständigkeiten. |
-| `/einheit-mitglied` | Fügt ein Mitglied hinzu oder weist ihm die Position Mitglied, Leiter oder Stellvertreter zu. |
+| `/einheit-mitglied` | Fügt ein Mitglied hinzu oder weist ihm die Position Mitglied, Kommandeur oder stellvertretender Kommandeur zu. |
 | `/einheit-entfernen` | Entfernt ein Mitglied aus einer Einheit. |
 | `/einheit-loeschen` | Löscht eine Einheit, sofern sie keine untergeordneten Einheiten mehr enthält. |
+
+**Permanente öffentliche Liste:**
+- `/einheit-kanal kanal:#einheiten` veröffentlicht die aktuelle Einheitenstruktur als Bot-Nachricht im gewählten Textkanal.
+- Die Nachricht zeigt pro Kompanie, Zug und Gruppe den Kommandeur, die Stellvertretung, alle Mitglieder sowie Zuständigkeiten.
+- Die Bot-Nachricht wird bei Erstellung, Bearbeitung, Löschung und Personaländerungen automatisch aktualisiert. Es wird dieselbe Nachricht bearbeitet statt bei jeder Änderung eine neue zu posten.
+- Der Bot benötigt im Zielkanal die Rechte **Kanal ansehen**, **Nachrichten senden**, **Links einbetten**, **Nachrichtenverlauf lesen** und **Nachrichten verwalten** (damit die Liste angepinnt werden kann).
 
 **Berechtigungen:**
 - Administratoren und mit `/setup-permission command:einheiten` freigeschaltete Rollen dürfen Kompanien erstellen und Einheiten verwalten.

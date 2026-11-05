@@ -136,17 +136,18 @@ const commands = [
     { name: 'uebergeordnet', description: 'Kompanie für Zug bzw. Zug für Gruppe', type: 3, required: false },
     { name: 'zustaendigkeit', description: 'Aufgaben und Zuständigkeiten', type: 3, required: false }
   ]},
-  { name: 'einheit-liste', description: 'Zeigt alle Kompanien, Züge und Gruppen.' },
+  { name: 'einheit-kanal', description: 'Richtet eine dauerhaft aktuelle Einheitenliste in einem öffentlichen Textkanal ein.', options: [{ name: 'kanal', description: 'Textkanal für die permanente Einheitenübersicht', type: 7, required: true, channel_types: [0] }] },
+  { name: 'einheit-liste', description: 'Zeigt die Einheitenübersicht mit Kommandeuren, Stellvertretern und Mitgliedern.' },
   { name: 'einheit-info', description: 'Zeigt Mitglieder, Führung und Zuständigkeiten einer Einheit.', options: [{ name: 'name', description: 'Name der Einheit', type: 3, required: true }] },
   { name: 'einheit-bearbeiten', description: 'Ändert Name oder Zuständigkeiten einer Einheit.', options: [
     { name: 'name', description: 'Aktueller Name der Einheit', type: 3, required: true },
     { name: 'neuer_name', description: 'Neuer Name', type: 3, required: false },
     { name: 'zustaendigkeit', description: 'Neue Zuständigkeiten', type: 3, required: false }
   ]},
-  { name: 'einheit-mitglied', description: 'Weist einem Mitglied eine Position in der Einheit zu.', options: [
+  { name: 'einheit-mitglied', description: 'Weist einen Kommandeur, Stellvertreter oder ein Mitglied zu.', options: [
     { name: 'name', description: 'Name der Einheit', type: 3, required: true },
     { name: 'user', description: 'Discord-Mitglied', type: 6, required: true },
-    { name: 'position', description: 'Mitglied, Leiter oder Stellvertreter', type: 3, required: true, choices: [{ name: 'Mitglied', value: 'mitglied' }, { name: 'Leiter', value: 'leiter' }, { name: 'Stellvertreter', value: 'stellvertreter' }] }
+    { name: 'position', description: 'Mitglied, Leiter oder Stellvertreter', type: 3, required: true, choices: [{ name: 'Mitglied', value: 'mitglied' }, { name: 'Kommandeur', value: 'leiter' }, { name: 'Stellvertretender Kommandeur', value: 'stellvertreter' }] }
   ]},
   { name: 'einheit-entfernen', description: 'Entfernt ein Mitglied aus einer Einheit.', options: [
     { name: 'name', description: 'Name der Einheit', type: 3, required: true },

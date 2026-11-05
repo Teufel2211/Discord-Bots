@@ -1,8 +1,8 @@
-const { PermissionFlagsBits, MessageFlags } = require('discord.js');
-const { supabaseRequest } = require('./database');
+const { PermissionFlagsBits, MessageFlags, EmbedBuilder, PermissionsBitField } = require('discord.js');
+const { supabaseRequest, getGuildSettings, saveGuildSettings } = require('./database');
 const EPHEMERAL = { flags: MessageFlags.Ephemeral };
 const TYPES = { kompanie: 'Kompanie', zug: 'Zug', gruppe: 'Gruppe' };
-const POSITIONS = { mitglied: 'Mitglied', leiter: 'Leiter', stellvertreter: 'Stellvertreter' };
+const POSITIONS = { mitglied: 'Mitglied', leiter: 'Kommandeur', stellvertreter: 'stellvertretender Kommandeur' };
 
 async function rows(path, options = {}) {
   const response = await supabaseRequest(path, { headers: { Prefer: 'return=representation' }, ...options });
@@ -48,9 +48,89 @@ async function listUnits(guildId) {
   return units.map(unit => ({ ...unit, members: byUnit.get(unit.id) || [] }));
 }
 
+async function refreshUnitRoster(guild) {
+  if (!guild) throw new Error('Discord-Server fehlt.');
+  const settings = await getGuildSettings(guild.id);
+  const roster = settings.unitRoster || {};
+  if (!roster.channelId) return { skipped: true };
+  const channel = await guild.channels.fetch(roster.channelId).catch(() => null);
+  if (!channel || !channel.isTextBased() || !channel.messages) throw new Error('Der konfigurierte Einheiten-Kanal ist nicht mehr verfügbar.');
+  const units = await listUnits(guild.id);
+  const fields = units.map(unit => {
+    const leader = unit.members.find(member => member.position === 'leiter');
+    const deputy = unit.members.find(member => member.position === 'stellvertreter');
+    const members = unit.members.filter(member => member.position === 'mitglied');
+    const parent = units.find(item => item.id === unit.parent_id);
+    const lines = [
+      leader ? '👑 **Kommandeur:** <@' + leader.user_id + '>' : '👑 **Kommandeur:** Nicht zugewiesen',
+      deputy ? '🛡️ **Stellvertretung:** <@' + deputy.user_id + '>' : '🛡️ **Stellvertretung:** Nicht zugewiesen',
+      '**Mitglieder (' + unit.members.length + '):** ' + (members.length ? members.map(member => '<@' + member.user_id + '>').join(', ') : 'Keine weiteren Mitglieder')
+    ];
+    if (parent) lines.unshift('↳ Übergeordnet: **' + parent.name + '**');
+    if (unit.responsibilities) lines.push('📋 ' + unit.responsibilities);
+    return { name: TYPES[unit.unit_type] + ' · ' + unit.name, value: lines.join('\n').slice(0, 1024), inline: false };
+  });
+  if (!fields.length) fields.push({ name: 'Noch keine Einheiten', value: 'Die Einheitenverwaltung wurde noch nicht eingerichtet.', inline: false });
+  const chunks = [];
+  let current = [], length = 0;
+  for (const field of fields) {
+    const size = field.name.length + field.value.length;
+    if (current.length >= 25 || length + size > 5700) { chunks.push(current); current = []; length = 0; }
+    current.push(field); length += size;
+  }
+  if (current.length) chunks.push(current);
+  if (chunks.length > 10) throw new Error('Die Liste ist zu umfangreich (maximal 250 Einheiten).');
+  const embeds = chunks.map((chunk, index) => new EmbedBuilder()
+    .setColor(0x657d45)
+    .setTitle(index === 0 ? '🏛️ Einheitenübersicht · Bundeswehr Waldstädt' : '🏛️ Einheitenübersicht · Fortsetzung ' + (index + 1))
+    .setDescription(index === 0 ? 'Aktuelle Gliederung, Kommandeure, Stellvertreter und Mannschaften. Diese Liste wird automatisch aktualisiert.' : 'Weitere Einheiten der Serverstruktur.')
+    .addFields(chunk)
+    .setFooter({ text: 'Automatisch aktualisiert durch BWW · ' + units.length + ' Einheiten' })
+    .setTimestamp());
+  let message = roster.messageId ? await channel.messages.fetch(roster.messageId).catch(() => null) : null;
+  if (message) await message.edit({ embeds, allowedMentions: { parse: [] } });
+  else {
+    message = await channel.send({ embeds, allowedMentions: { parse: [] } });
+    settings.unitRoster = { ...roster, channelId: channel.id, messageId: message.id };
+    await saveGuildSettings(guild.id, settings);
+  }
+  if (!message.pinned) await message.pin().catch(error => console.error('[BWW Einheiten] Liste konnte nicht angepinnt werden:', error.message));
+  return { messageId: message.id, channelId: channel.id, unitCount: units.length };
+}
+
 async function handleUnitCommand(interaction, config) {
   const command = interaction.commandName;
   if (!command.startsWith('einheit-')) return false;
+  if (command === 'einheit-kanal') {
+    const channel = interaction.options.getChannel('kanal', true);
+    const allowed = interaction.memberPermissions?.has(PermissionFlagsBits.Administrator) ||
+      (config.permissions?.einheiten || []).some(id => interaction.member?.roles?.cache?.has(id));
+    if (!allowed) return interaction.reply({ content: '❌ Nur Administratoren oder freigeschaltete Einheiten-Verwalter dürfen den Listen-Kanal festlegen.', ...EPHEMERAL });
+    if (!channel.isTextBased() || !channel.messages) return interaction.reply({ content: '❌ Bitte wähle einen normalen Textkanal.', ...EPHEMERAL });
+    const me = await interaction.guild.members.fetchMe();
+    const permissions = channel.permissionsFor(me);
+    if (!permissions?.has([PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.EmbedLinks, PermissionsBitField.Flags.ReadMessageHistory, PermissionsBitField.Flags.ManageMessages])) {
+      return interaction.reply({ content: '❌ Mir fehlen Rechte: Kanal ansehen, Nachrichten senden, Links einbetten, Nachrichtenverlauf lesen und Nachrichten verwalten (zum Anpinnen).', ...EPHEMERAL });
+    }
+    const settings = await getGuildSettings(interaction.guildId);
+    const previousRoster = settings.unitRoster || {};
+    if (previousRoster.channelId && previousRoster.channelId !== channel.id && previousRoster.messageId) {
+      const oldChannel = await interaction.guild.channels.fetch(previousRoster.channelId).catch(() => null);
+      if (oldChannel?.messages) {
+        const oldMessage = await oldChannel.messages.fetch(previousRoster.messageId).catch(() => null);
+        if (oldMessage) await oldMessage.delete().catch(() => {});
+      }
+    }
+    settings.unitRoster = { ...previousRoster, channelId: channel.id, messageId: previousRoster.channelId === channel.id ? previousRoster.messageId : '' };
+    await saveGuildSettings(interaction.guildId, settings, interaction.user.id);
+    try {
+      await refreshUnitRoster(interaction.guild);
+      return interaction.reply({ content: '✅ Die permanente Einheitenliste wurde in ' + channel + ' eingerichtet und wird automatisch aktualisiert.', ...EPHEMERAL });
+    } catch (error) {
+      return interaction.reply({ content: '⚠️ Kanal gespeichert, Liste konnte aber nicht veröffentlicht werden: ' + error.message, ...EPHEMERAL });
+    }
+  }
+
   if (command === 'einheit-liste' || command === 'einheit-uebersicht') {
     const units = await listUnits(interaction.guildId);
     if (!units.length) return interaction.reply({ content: '📭 Es sind noch keine Einheiten angelegt.', ...EPHEMERAL });
@@ -59,11 +139,11 @@ async function handleUnitCommand(interaction, config) {
       const deputy = unit.members.find(m => m.position === 'stellvertreter');
       const parent = units.find(item => item.id === unit.parent_id);
       return '**' + TYPES[unit.unit_type] + ' · ' + unit.name + '**' + (parent ? ' _(unter ' + parent.name + ')_' : '') +
-        '\nLeiter: ' + (leader ? '<@' + leader.user_id + '>' : 'Nicht zugewiesen') +
-        ' · Stv.: ' + (deputy ? '<@' + deputy.user_id + '>' : 'Nicht zugewiesen') +
+        '\nKommandeur: ' + (leader ? '<@' + leader.user_id + '>' : 'Nicht zugewiesen') +
+        ' · Stellvertretung: ' + (deputy ? '<@' + deputy.user_id + '>' : 'Nicht zugewiesen') +
         ' · Mitglieder: ' + unit.members.length + (unit.responsibilities ? '\nZuständigkeit: ' + unit.responsibilities : '');
     });
-    return interaction.reply({ content: lines.join('\n\n').slice(0, 1900), ...EPHEMERAL });
+    return interaction.reply({ content: lines.join('\n\n').slice(0, 1900), allowedMentions: { parse: [] } });
   }
 
   if (command === 'einheit-erstellen') {
@@ -85,6 +165,7 @@ async function handleUnitCommand(interaction, config) {
     const created = await rows('bww_units', { method: 'POST', body: JSON.stringify({ guild_id: interaction.guildId, unit_type: type, parent_id: parent?.id || null, name, responsibilities, created_by: interaction.user.id }) });
     const unit = created[0];
     await audit(interaction.guildId, unit.id, interaction.user.id, 'unit_created', { type, name, parent: parent?.name || null });
+    await refreshUnitRoster(interaction.guild).catch(error => console.error('[BWW Einheiten] Liste konnte nicht aktualisiert werden:', error.message));
     return interaction.reply({ content: '✅ ' + TYPES[type] + ' **' + name + '** wurde erstellt' + (parent ? ' unter **' + parent.name + '**' : '') + '.', ...EPHEMERAL });
   }
 
@@ -99,8 +180,8 @@ async function handleUnitCommand(interaction, config) {
     const deputy = members.find(m => m.position === 'stellvertreter');
     const parent = unit.parent_id ? await rows('bww_units?select=name&id=eq.' + unit.parent_id + '&limit=1') : [];
     const lines = ['## ' + TYPES[unit.unit_type] + ' · ' + unit.name, parent[0] ? 'Übergeordnet: ' + parent[0].name : '',
-      'Leiter: ' + (leader ? '<@' + leader.user_id + '>' : 'Nicht zugewiesen'),
-      'Stellvertreter: ' + (deputy ? '<@' + deputy.user_id + '>' : 'Nicht zugewiesen'),
+      'Kommandeur: ' + (leader ? '<@' + leader.user_id + '>' : 'Nicht zugewiesen'),
+      'Stellvertretender Kommandeur: ' + (deputy ? '<@' + deputy.user_id + '>' : 'Nicht zugewiesen'),
       '**Mitglieder (' + members.length + ')**', ...members.filter(m => m.position === 'mitglied').map(m => '• <@' + m.user_id + '>'),
       unit.responsibilities ? '**Zuständigkeiten:** ' + unit.responsibilities : ''];
     return interaction.reply({ content: lines.filter(Boolean).join('\n').slice(0, 1900), ...EPHEMERAL });
@@ -113,6 +194,7 @@ async function handleUnitCommand(interaction, config) {
     if (responsibilities !== null) patch.responsibilities = responsibilities.trim().slice(0, 1000);
     await rows('bww_units?id=eq.' + unit.id + '&guild_id=eq.' + encodeURIComponent(interaction.guildId), { method: 'PATCH', body: JSON.stringify(patch) });
     await audit(interaction.guildId, unit.id, interaction.user.id, 'unit_updated', patch);
+    await refreshUnitRoster(interaction.guild).catch(error => console.error('[BWW Einheiten] Liste konnte nicht aktualisiert werden:', error.message));
     return interaction.reply({ content: '✅ Einheit **' + unit.name + '** wurde aktualisiert.', ...EPHEMERAL });
   }
 
@@ -123,6 +205,7 @@ async function handleUnitCommand(interaction, config) {
     if (assignedMembers.length) return interaction.reply({ content: '❌ Diese Einheit hat noch Mitglieder. Entferne oder versetze sie zuerst.', ...EPHEMERAL });
     await audit(interaction.guildId, unit.id, interaction.user.id, 'unit_deleted', { name: unit.name, type: unit.unit_type });
     await supabaseRequest('bww_units?id=eq.' + unit.id + '&guild_id=eq.' + encodeURIComponent(interaction.guildId), { method: 'DELETE' });
+    await refreshUnitRoster(interaction.guild).catch(error => console.error('[BWW Einheiten] Liste konnte nicht aktualisiert werden:', error.message));
     return interaction.reply({ content: '🗑️ Einheit **' + unit.name + '** wurde gelöscht.', ...EPHEMERAL });
   }
 
@@ -135,6 +218,7 @@ async function handleUnitCommand(interaction, config) {
     await rows('bww_unit_members?on_conflict=unit_id,user_id', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
       body: JSON.stringify({ guild_id: interaction.guildId, unit_id: unit.id, user_id: member.id, position, assigned_by: interaction.user.id }) });
     await audit(interaction.guildId, unit.id, interaction.user.id, 'member_assigned', { userId: member.id, position });
+    await refreshUnitRoster(interaction.guild).catch(error => console.error('[BWW Einheiten] Liste konnte nicht aktualisiert werden:', error.message));
     return interaction.reply({ content: '✅ ' + member + ' ist jetzt **' + POSITIONS[position] + '** in **' + unit.name + '**.', ...EPHEMERAL });
   }
 
@@ -142,8 +226,9 @@ async function handleUnitCommand(interaction, config) {
     const member = interaction.options.getUser('user', true);
     await supabaseRequest('bww_unit_members?unit_id=eq.' + unit.id + '&user_id=eq.' + member.id, { method: 'DELETE' });
     await audit(interaction.guildId, unit.id, interaction.user.id, 'member_removed', { userId: member.id });
+    await refreshUnitRoster(interaction.guild).catch(error => console.error('[BWW Einheiten] Liste konnte nicht aktualisiert werden:', error.message));
     return interaction.reply({ content: '✅ <@' + member.id + '> wurde aus **' + unit.name + '** entfernt.', ...EPHEMERAL });
   }
   return interaction.reply({ content: '❌ Unbekannter Einheiten-Befehl.', ...EPHEMERAL });
 }
-module.exports = { handleUnitCommand, listUnits, audit };
+module.exports = { handleUnitCommand, listUnits, audit, refreshUnitRoster };
