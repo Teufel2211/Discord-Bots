@@ -23,6 +23,8 @@ function selfRoleIsAssignable(role, botMember) {
   const dangerous = PermissionFlagsBits.Administrator | PermissionFlagsBits.ManageGuild |
     PermissionFlagsBits.ManageRoles | PermissionFlagsBits.ManageChannels |
     PermissionFlagsBits.ManageMessages | PermissionFlagsBits.ManageWebhooks |
+    PermissionFlagsBits.ManageEvents | PermissionFlagsBits.ManageNicknames |
+    PermissionFlagsBits.ManageThreads | PermissionFlagsBits.ManageGuildExpressions |
     PermissionFlagsBits.KickMembers | PermissionFlagsBits.BanMembers |
     PermissionFlagsBits.ModerateMembers | PermissionFlagsBits.MentionEveryone;
   return !role.permissions.has(dangerous);
