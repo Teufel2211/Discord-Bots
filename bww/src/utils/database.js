@@ -26,7 +26,8 @@ const DEFAULT_SETTINGS = Object.freeze({
     mode: 'online'
   },
   permissions: {},
-  raidProtection: { enabled: false, joinThreshold: 6, windowSeconds: 12, minAccountAgeDays: 0, autoLockdown: true }
+  raidProtection: { enabled: false, joinThreshold: 6, windowSeconds: 12, minAccountAgeDays: 0, autoLockdown: true },
+  unitRoster: { channelId: '', messageId: '' }
 });
 
 const settingsCache = new Map();
