@@ -149,9 +149,17 @@ Bei `/panel-create` müssen für jeden Button sowohl ein Label als auch ein Antw
 | `/setup-welcome` | Konfiguriert den Begrüßungskanal, den Text und optional einen Titel. |
 | `/setup-verify` | Konfiguriert den Verifizierungskanal, die Rolle und den Nachrichtentext. |
 | `/verify` | Sendet das konfigurierte Verifizierungs-Panel. |
+| `/selfrollen-panel` | Erstellt ein dauerhaftes Self-Role-Menü mit bis zu zehn auswählbaren Rollen. |
 | `/setup-ticket` | Konfiguriert die Ticket-Kategorie und die Support-Rolle. |
 | `/ticket` | Sendet das Ticket-Panel. |
 | `/umfrage` | Erstellt eine Umfrage mit zwei bis fünf Antwortoptionen und Live-Zähler. |
+
+**Self-Role-System:**
+- Administratoren erstellen mit `/selfrollen-panel kanal:#rollen rolle1:@... rolle2:@...` ein dauerhaftes Auswahlmenü.
+- Bis zu zehn freigegebene Rollen können in einem Menü angeboten werden. Mitglieder können mehrere Rollen auswählen und ihre Auswahl jederzeit ändern oder leeren.
+- Bei jeder Auswahl werden nur die Rollen dieses Panels angepasst; andere Serverrollen bleiben unverändert.
+- Rollen mit Administrator-, Moderations-, Verwaltungs- oder Kanalverwaltungsrechten sowie verwaltete Rollen und Rollen oberhalb der Bot-Rolle werden abgelehnt.
+- Der Bot benötigt im Zielserver die Berechtigung **Rollen verwalten** und muss in der Rollen-Hierarchie über den angebotenen Rollen stehen.
 
 Ticket-Gründe im aktuellen System:
 - Allgemeine Frage
