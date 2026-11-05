@@ -112,7 +112,15 @@ async function handleUnitCommand(interaction, config) {
       return interaction.reply({ content: '❌ Mir fehlen Rechte: Kanal ansehen, Nachrichten senden, Links einbetten und Nachrichtenverlauf lesen.', ...EPHEMERAL });
     }
     const settings = await getGuildSettings(interaction.guildId);
-    settings.unitRoster = { ...(settings.unitRoster || {}), channelId: channel.id };
+    const previousRoster = settings.unitRoster || {};
+    if (previousRoster.channelId && previousRoster.channelId !== channel.id && previousRoster.messageId) {
+      const oldChannel = await interaction.guild.channels.fetch(previousRoster.channelId).catch(() => null);
+      if (oldChannel?.messages) {
+        const oldMessage = await oldChannel.messages.fetch(previousRoster.messageId).catch(() => null);
+        if (oldMessage) await oldMessage.delete().catch(() => {});
+      }
+    }
+    settings.unitRoster = { ...previousRoster, channelId: channel.id, messageId: previousRoster.channelId === channel.id ? previousRoster.messageId : '' };
     await saveGuildSettings(interaction.guildId, settings, interaction.user.id);
     try {
       await refreshUnitRoster(interaction.guild);
