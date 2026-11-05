@@ -2,7 +2,7 @@ const { PermissionFlagsBits, MessageFlags, EmbedBuilder, PermissionsBitField } =
 const { supabaseRequest, getGuildSettings, saveGuildSettings } = require('./database');
 const EPHEMERAL = { flags: MessageFlags.Ephemeral };
 const TYPES = { kompanie: 'Kompanie', zug: 'Zug', gruppe: 'Gruppe' };
-const POSITIONS = { mitglied: 'Mitglied', leiter: 'Leiter', stellvertreter: 'Stellvertreter' };
+const POSITIONS = { mitglied: 'Mitglied', leiter: 'Kommandeur', stellvertreter: 'stellvertretender Kommandeur' };
 
 async function rows(path, options = {}) {
   const response = await supabaseRequest(path, { headers: { Prefer: 'return=representation' }, ...options });
@@ -179,8 +179,8 @@ async function handleUnitCommand(interaction, config) {
     const deputy = members.find(m => m.position === 'stellvertreter');
     const parent = unit.parent_id ? await rows('bww_units?select=name&id=eq.' + unit.parent_id + '&limit=1') : [];
     const lines = ['## ' + TYPES[unit.unit_type] + ' · ' + unit.name, parent[0] ? 'Übergeordnet: ' + parent[0].name : '',
-      'Leiter: ' + (leader ? '<@' + leader.user_id + '>' : 'Nicht zugewiesen'),
-      'Stellvertreter: ' + (deputy ? '<@' + deputy.user_id + '>' : 'Nicht zugewiesen'),
+      'Kommandeur: ' + (leader ? '<@' + leader.user_id + '>' : 'Nicht zugewiesen'),
+      'Stellvertretender Kommandeur: ' + (deputy ? '<@' + deputy.user_id + '>' : 'Nicht zugewiesen'),
       '**Mitglieder (' + members.length + ')**', ...members.filter(m => m.position === 'mitglied').map(m => '• <@' + m.user_id + '>'),
       unit.responsibilities ? '**Zuständigkeiten:** ' + unit.responsibilities : ''];
     return interaction.reply({ content: lines.filter(Boolean).join('\n').slice(0, 1900), ...EPHEMERAL });
