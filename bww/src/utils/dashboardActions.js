@@ -3,6 +3,7 @@ const { supabaseRequest } = require('./database');
 const { embedV2 } = require('./embeds');
 const { lockdownGuild, restoreGuild } = require('./raidProtection');
 const { openDmThread } = require('./dmRelay');
+const { refreshUnitRoster } = require('./units');
 
 function hashCode(value) { return crypto.createHash('sha256').update(String(value)).digest('hex'); }
 async function issueDashboardCode(guildId, userId) {
@@ -38,6 +39,9 @@ async function processAction(client, action) {
       await supabaseRequest('bww_embed_messages?id=eq.' + record.id, { method: 'PATCH', body: JSON.stringify({ payload, updated_by: action.created_by, updated_at: new Date().toISOString() }) });
       return;
     }
+    case 'unit_roster_refresh':
+      await refreshUnitRoster(guild);
+      return;
     case 'raid_lockdown':
       await lockdownGuild(guild, action.created_by, p.reason || 'Dashboard-Lockdown');
       return;
