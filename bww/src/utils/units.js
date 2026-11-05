@@ -108,7 +108,7 @@ async function handleUnitCommand(interaction, config) {
     if (!channel.isTextBased() || !channel.messages) return interaction.reply({ content: '❌ Bitte wähle einen normalen Textkanal.', ...EPHEMERAL });
     const me = await interaction.guild.members.fetchMe();
     const permissions = channel.permissionsFor(me);
-    if (!permissions?.has(PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.EmbedLinks, PermissionsBitField.Flags.ReadMessageHistory)) {
+    if (!permissions?.has([PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.EmbedLinks, PermissionsBitField.Flags.ReadMessageHistory])) {
       return interaction.reply({ content: '❌ Mir fehlen Rechte: Kanal ansehen, Nachrichten senden, Links einbetten und Nachrichtenverlauf lesen.', ...EPHEMERAL });
     }
     const settings = await getGuildSettings(interaction.guildId);
