@@ -222,7 +222,7 @@ app.post('/einheiten/create',requireSession,async(req,res)=>{
     if(!parents.length || parents[0].unit_type!==(type==='zug'?'kompanie':'zug'))return res.status(400).send('Die übergeordnete Einheit passt nicht zur Hierarchie.');
   }
   await db('bww_units',{method:'POST',body:JSON.stringify({guild_id:g,unit_type:type,name,parent_id:parent,responsibilities:String(req.body.responsibilities||'').slice(0,1000),created_by:req.dashboardSession.user_id})});
-  if(settingsRosterEnabled(await getSettings(g))) await queueAction(req,'unit_roster_refresh',{});
+  const rosterSettings=await getSettings(g); if(rosterSettings.unitRoster?.channelId) await queueAction(req,'unit_roster_refresh',{});
   res.redirect('/einheiten');
 });
 
