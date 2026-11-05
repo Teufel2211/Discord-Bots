@@ -27,7 +27,8 @@ const DEFAULT_SETTINGS = Object.freeze({
   },
   permissions: {},
   raidProtection: { enabled: false, joinThreshold: 6, windowSeconds: 12, minAccountAgeDays: 0, autoLockdown: true },
-  unitRoster: { channelId: '', messageId: '' }
+  unitRoster: { channelId: '', messageId: '' },
+  selfRoles: { panels: {} }
 });
 
 const settingsCache = new Map();
@@ -55,6 +56,7 @@ function mergeSettings(value) {
       : {},
     raidProtection: { ...DEFAULT_SETTINGS.raidProtection, ...(parsed.raidProtection || {}) },
     unitRoster: parsed.unitRoster && typeof parsed.unitRoster === 'object' ? { channelId: String(parsed.unitRoster.channelId || ''), messageId: String(parsed.unitRoster.messageId || '') } : { channelId: '', messageId: '' },
+    selfRoles: { panels: parsed.selfRoles?.panels && typeof parsed.selfRoles.panels === 'object' && !Array.isArray(parsed.selfRoles.panels) ? parsed.selfRoles.panels : {} },
     recurringMessages: Array.isArray(parsed.recurringMessages) ? parsed.recurringMessages : []
   };
 }
