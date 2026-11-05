@@ -181,7 +181,7 @@ Das Einheiten-System bildet die Organisationsstruktur **Kompanie → Zug → Gru
 - `/einheit-kanal kanal:#einheiten` veröffentlicht die aktuelle Einheitenstruktur als Bot-Nachricht im gewählten Textkanal.
 - Die Nachricht zeigt pro Kompanie, Zug und Gruppe den Kommandeur, die Stellvertretung, alle Mitglieder sowie Zuständigkeiten.
 - Die Bot-Nachricht wird bei Erstellung, Bearbeitung, Löschung und Personaländerungen automatisch aktualisiert. Es wird dieselbe Nachricht bearbeitet statt bei jeder Änderung eine neue zu posten.
-- Der Bot benötigt im Zielkanal die Rechte **Kanal ansehen**, **Nachrichten senden**, **Links einbetten** und **Nachrichtenverlauf lesen**.
+- Der Bot benötigt im Zielkanal die Rechte **Kanal ansehen**, **Nachrichten senden**, **Links einbetten**, **Nachrichtenverlauf lesen** und **Nachrichten verwalten** (damit die Liste angepinnt werden kann).
 
 **Berechtigungen:**
 - Administratoren und mit `/setup-permission command:einheiten` freigeschaltete Rollen dürfen Kompanien erstellen und Einheiten verwalten.
