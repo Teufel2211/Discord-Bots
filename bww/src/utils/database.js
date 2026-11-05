@@ -53,6 +53,7 @@ function mergeSettings(value) {
         ]))
       : {},
     raidProtection: { ...DEFAULT_SETTINGS.raidProtection, ...(parsed.raidProtection || {}) },
+    unitRoster: parsed.unitRoster && typeof parsed.unitRoster === 'object' ? { channelId: String(parsed.unitRoster.channelId || ''), messageId: String(parsed.unitRoster.messageId || '') } : { channelId: '', messageId: '' },
     recurringMessages: Array.isArray(parsed.recurringMessages) ? parsed.recurringMessages : []
   };
 }
