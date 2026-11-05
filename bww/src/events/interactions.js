@@ -1,4 +1,4 @@
-const { ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, SeparatorSpacingSize, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits, MessageFlags } = require('discord.js');
+const { ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, SeparatorSpacingSize, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, PermissionFlagsBits, MessageFlags } = require('discord.js');
 const { isAllowed } = require('../commands');
 const { getGuildSettings, saveGuildSettings, supabaseRequest } = require('../utils/database');
 const { embedV2, verifyComponents } = require('../utils/embeds');
@@ -15,6 +15,28 @@ const personnel = require('../utils/personnel');
 const EPHEMERAL = { flags: MessageFlags.Ephemeral };
 const V2 = MessageFlags.IsComponentsV2;
 const EPHEMERAL_V2 = MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral;
+
+function selfRoleIsAssignable(role, botMember) {
+  if (!role || role.managed || role.id === role.guild.id) return false;
+  if (!botMember || botMember.roles.highest.comparePositionTo(role) <= 0) return false;
+  const dangerous = PermissionFlagsBits.Administrator | PermissionFlagsBits.ManageGuild |
+    PermissionFlagsBits.ManageRoles | PermissionFlagsBits.ManageChannels |
+    PermissionFlagsBits.ManageMessages | PermissionFlagsBits.ManageWebhooks |
+    PermissionFlagsBits.ManageEvents | PermissionFlagsBits.ManageNicknames |
+    PermissionFlagsBits.ManageThreads | PermissionFlagsBits.ManageGuildExpressions |
+    PermissionFlagsBits.KickMembers | PermissionFlagsBits.BanMembers |
+    PermissionFlagsBits.ModerateMembers | PermissionFlagsBits.MentionEveryone;
+  return !role.permissions.has(dangerous);
+}
+function buildSelfRoleRow(messageId, roles) {
+  const menu = new StringSelectMenuBuilder()
+    .setCustomId('bww_selfroles_' + messageId)
+    .setPlaceholder('Wähle deine Rollen aus …')
+    .setMinValues(0)
+    .setMaxValues(roles.length)
+    .addOptions(roles.map(role => ({ label: role.name.slice(0, 100), value: role.id, description: ('Rolle: ' + role.name).slice(0, 100) })));
+  return new ActionRowBuilder().addComponents(menu);
+}
 
 function hasGiveawayManagePermission(interaction, config) {
   if (interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) return true;
@@ -111,6 +133,32 @@ module.exports = async (interaction, client) => {
       }
     }
   }
+  if (interaction.isStringSelectMenu() && interaction.customId.startsWith('bww_selfroles_')) {
+    const messageId = interaction.customId.slice('bww_selfroles_'.length);
+    const panel = config.selfRoles?.panels?.[messageId];
+    if (!panel || interaction.message?.id !== messageId) return interaction.reply({ content: '❌ Dieses Self-Role-Panel ist nicht mehr konfiguriert.', ...EPHEMERAL });
+    const botMember = await interaction.guild.members.fetchMe();
+    const member = await interaction.guild.members.fetch(interaction.user.id);
+    const configuredRoles = [];
+    for (const roleId of panel.roleIds || []) {
+      const role = interaction.guild.roles.cache.get(roleId) || await interaction.guild.roles.fetch(roleId).catch(() => null);
+      if (role && selfRoleIsAssignable(role, botMember)) configuredRoles.push(role);
+    }
+    if (!configuredRoles.length) return interaction.reply({ content: '❌ Für dieses Panel sind keine gültigen, vom Bot verwaltbaren Rollen mehr vorhanden.', ...EPHEMERAL });
+    const allowedIds = new Set(configuredRoles.map(role => role.id));
+    const selectedIds = new Set(interaction.values.filter(id => allowedIds.has(id)));
+    const removeIds = configuredRoles.filter(role => member.roles.cache.has(role.id) && !selectedIds.has(role.id)).map(role => role.id);
+    const addIds = configuredRoles.filter(role => selectedIds.has(role.id) && !member.roles.cache.has(role.id)).map(role => role.id);
+    try {
+      if (removeIds.length) await member.roles.remove(removeIds, 'Self-Role-Auswahl');
+      if (addIds.length) await member.roles.add(addIds, 'Self-Role-Auswahl');
+      const selectedNames = configuredRoles.filter(role => selectedIds.has(role.id)).map(role => role.name);
+      return interaction.reply({ content: selectedNames.length ? '✅ Deine Rollen wurden aktualisiert: ' + selectedNames.map(name => '**' + name + '**').join(', ') : '✅ Deine Self-Rollen wurden entfernt.', ...EPHEMERAL });
+    } catch (error) {
+      console.error('[BWW Self-Roles] Rollenänderung fehlgeschlagen:', error.message);
+      return interaction.reply({ content: '❌ Rollen konnten nicht geändert werden. Prüfe die Rollenposition und die Berechtigung „Rollen verwalten“ des Bots.', ...EPHEMERAL });
+    }
+  }
   if (interaction.isStringSelectMenu() && interaction.customId === 'bww_ticket_select') {
     const reason = TICKET_REASONS.find(r => r.value === interaction.values[0]);
     const res = await createTicket(interaction.guild, config, interaction.user, reason ? reason.label : interaction.values[0]);
@@ -119,6 +167,33 @@ module.exports = async (interaction, client) => {
   }
   if (!interaction.isChatInputCommand()) return;
   const command = interaction.commandName;
+  if (command === 'selfrollen-panel') {
+    if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) return interaction.reply({ content: '❌ Nur Administratoren dürfen Self-Role-Panels erstellen.', ...EPHEMERAL });
+    const channel = interaction.options.getChannel('kanal', true);
+    if (!channel.isTextBased() || !channel.messages) return interaction.reply({ content: '❌ Bitte wähle einen normalen Textkanal.', ...EPHEMERAL });
+    const botMember = await interaction.guild.members.fetchMe();
+    const channelPermissions = channel.permissionsFor(botMember);
+    if (!channelPermissions?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks])) return interaction.reply({ content: '❌ Mir fehlen im Zielkanal die Rechte zum Ansehen, Schreiben oder Einbetten von Links.', ...EPHEMERAL });
+    const roleIds = [];
+    for (let i = 1; i <= 10; i++) {
+      const role = interaction.options.getRole('rolle' + i);
+      if (!role) continue;
+      if (roleIds.includes(role.id)) continue;
+      if (!selfRoleIsAssignable(role, botMember)) return interaction.reply({ content: '❌ Die Rolle **' + role.name + '** ist nicht als Self-Role geeignet. Sie ist verwaltet, zu hoch oder besitzt gefährliche Berechtigungen.', ...EPHEMERAL });
+      roleIds.push(role.id);
+    }
+    if (!roleIds.length) return interaction.reply({ content: '❌ Gib mindestens eine Rolle über rolle1 bis rolle10 an.', ...EPHEMERAL });
+    const roles = roleIds.map(id => interaction.guild.roles.cache.get(id)).filter(Boolean);
+    const title = (interaction.options.getString('titel') || 'Wähle deine Rollen').slice(0, 200);
+    const description = (interaction.options.getString('beschreibung') || 'Wähle eine oder mehrere Rollen aus dem Menü. Deine Auswahl kannst du jederzeit ändern.').slice(0, 1800);
+    const message = await channel.send({ content: '**' + title + '**\n' + description + '\n\n' + roles.map(role => '• ' + role.name).join('\n'), allowedMentions: { parse: [] } });
+    await message.edit({ components: [buildSelfRoleRow(message.id, roles)], allowedMentions: { parse: [] } });
+    config.selfRoles = config.selfRoles || { panels: {} };
+    config.selfRoles.panels = config.selfRoles.panels || {};
+    config.selfRoles.panels[message.id] = { channelId: channel.id, roleIds };
+    await saveGuildSettings(interaction.guildId, config, interaction.user.id);
+    return interaction.reply({ content: '✅ Self-Role-Panel wurde in ' + channel + ' erstellt. Mitglieder können ihre Rollen jetzt selbst auswählen.', ...EPHEMERAL });
+  }
   if (command.startsWith('einheit-')) return handleUnitCommand(interaction, config);
   if (command.startsWith('setup-')) {
     if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) return interaction.reply({ content: '❌ Nur Administratoren dürfen das Setup ändern.', ...EPHEMERAL });
