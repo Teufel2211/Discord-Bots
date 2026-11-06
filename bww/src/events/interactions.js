@@ -28,18 +28,6 @@ function selfRoleIsAssignable(role, botMember) {
     PermissionFlagsBits.ModerateMembers | PermissionFlagsBits.MentionEveryone;
   return !role.permissions.has(dangerous);
 }
-function buildSelfRoleButtons(messageId, buttons) {
-  return new ActionRowBuilder().addComponents(buttons.map((button) => {
-    const styles = { primary: ButtonStyle.Primary, secondary: ButtonStyle.Secondary, success: ButtonStyle.Success, danger: ButtonStyle.Danger };
-    const builder = new ButtonBuilder()
-      .setCustomId('bww_selfrole_' + messageId + '_' + button.roleId)
-      .setLabel(String(button.label || 'Rolle').slice(0, 80))
-      .setStyle(styles[button.style] || ButtonStyle.Secondary);
-    if (button.emoji) builder.setEmoji({ name: button.emoji });
-    return builder;
-  }));
-}
-
 function hasGiveawayManagePermission(interaction, config) {
   if (interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) return true;
   const roles = config.permissions['giveaway'] || [];
@@ -69,9 +57,10 @@ module.exports = async (interaction, client) => {
   }
   const config = await getGuildSettings(interaction.guildId);
   if (interaction.isButton() && interaction.customId.startsWith('bww_selfrole_')) {
-    const prefix = 'bww_selfrole_' + interaction.message.id + '_';
-    const panel = config.selfRoles?.panels?.[interaction.message.id];
-    const roleId = interaction.customId.startsWith(prefix) ? interaction.customId.slice(prefix.length) : '';
+    const parts = interaction.customId.slice('bww_selfrole_'.length).split('_');
+    const panelKey = parts.shift();
+    const roleId = parts.join('_');
+    const panel = config.selfRoles?.panels?.[panelKey];
     if (!panel || !roleId || !(panel.buttons || []).some(button => button.roleId === roleId)) return interaction.reply({ content: '❌ Dieses Self-Role-Panel ist nicht mehr gültig.', ...EPHEMERAL });
     const role = interaction.guild.roles.cache.get(roleId) || await interaction.guild.roles.fetch(roleId).catch(() => null);
     const botMember = await interaction.guild.members.fetchMe();
@@ -220,22 +209,28 @@ module.exports = async (interaction, client) => {
         catch { return interaction.reply({ content: '❌ Das Emoji bei ' + button.label + ' ist ungültig. Nutze ein einzelnes Unicode-Emoji.', ...EPHEMERAL }); }
       }
     }
-    const message = await channel.send({ content: 'Self-Role-Panel wird eingerichtet …' });
+    const panelKey = require('crypto').randomBytes(6).toString('hex');
     const panelComponents = embedV2({
       color: '#' + cleanColor,
       components: [
         { type: 'text', content: ['## ' + title, description].filter(Boolean).join('\n') },
         { type: 'buttons', buttons: buttons.map(button => ({
           label: button.label, emoji: button.emoji || undefined, style: button.style,
-          customId: 'bww_selfrole_' + message.id + '_' + button.roleId
+          customId: 'bww_selfrole_' + panelKey + '_' + button.roleId
         })) }
       ]
     });
-    await message.edit({ content: null, components: [panelComponents], flags: MessageFlags.IsComponentsV2, allowedMentions: { parse: [] } });
     config.selfRoles = config.selfRoles || { panels: {} };
     config.selfRoles.panels = config.selfRoles.panels || {};
-    config.selfRoles.panels[message.id] = { channelId: channel.id, buttons };
+    config.selfRoles.panels[panelKey] = { channelId: channel.id, buttons };
     await saveGuildSettings(interaction.guildId, config, interaction.user.id);
+    try {
+      await channel.send({ components: [panelComponents], flags: MessageFlags.IsComponentsV2, allowedMentions: { parse: [] } });
+    } catch (error) {
+      delete config.selfRoles.panels[panelKey];
+      await saveGuildSettings(interaction.guildId, config, interaction.user.id).catch(() => {});
+      throw error;
+    }
     return interaction.reply({ content: '✅ Self-Role-Panel wurde in ' + channel + ' erstellt. Embed-Text, Embed-Farbe, Button-Namen, Button-Farben und Emojis wurden gespeichert.', ...EPHEMERAL });
   }
   if (command.startsWith('einheit-')) return handleUnitCommand(interaction, config);
