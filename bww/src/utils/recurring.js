@@ -1,6 +1,7 @@
 const { MessageFlags } = require('discord.js');
 const { getGuildSettings, saveGuildSettings } = require('./database');
 const { embedV2 } = require('./embeds');
+const { migrateDiscordImageUrl } = require('./recurringImages');
 
 const V2 = MessageFlags.IsComponentsV2;
 let running = false;
@@ -26,6 +27,10 @@ async function processRecurringMessages(client) {
 
         for (const entry of due) {
           try {
+            if (entry.image && /https?:\/\/(?:cdn|media)\.discordapp\.net\//i.test(entry.image)) {
+              entry.image = await migrateDiscordImageUrl(entry.image, guild.id);
+              await saveGuildSettings(guild.id, settings);
+            }
             const channel = await client.channels.fetch(entry.channelId).catch(() => null);
             if (!channel?.isTextBased()) throw new Error('Zielkanal nicht gefunden oder nicht textbasiert.');
             const container = embedV2({ description: entry.text || '', image: entry.image || '', color: entry.color || '#5865F2' });
