@@ -6,6 +6,7 @@ const { ticketContainer, createTicket, TICKET_REASONS } = require('../utils/tick
 const { loadGiveaways, saveGiveaways, giveawayContainer, startGiveaway, finalizeGiveaway, rerollGiveaway, updateGiveawayMessage, recordGiveawayEvent, recordGiveawayEntry, getGiveawayAudit } = require('../utils/giveaway');
 const { getPanel, setPanel, deletePanel, loadPanels, panelContainer, buttonResponseContainer, addPanelMessage } = require('../utils/panels');
 const { createStatusMessage, updateStatusMessage } = require('../utils/status');
+const { saveDiscordAttachment } = require('../utils/recurringImages');
 const { handleUnitCommand, listUnits } = require('../utils/units');
 const { issueDashboardCode } = require('../utils/dashboardActions');
 const { getRaidSettings, saveRaidSettings, lockdownGuild, restoreGuild } = require('../utils/raidProtection');
@@ -391,7 +392,10 @@ module.exports = async (interaction, client) => {
     const attachment = interaction.options.getAttachment('bild');
     const color = interaction.options.getString('farbe') || '#5865F2';
     const id = Math.random().toString(36).slice(2, 8).toUpperCase();
-    const schedule = { id, active: true, channelId: channel.id, text, image: attachment?.url || '', color, intervalMs, intervalLabel: `${amount} ${unit}`, nextRunAt: new Date(Date.now() + intervalMs).toISOString(), createdAt: new Date().toISOString(), createdBy: interaction.user.id };
+    let image = '';
+    try { image = attachment ? await saveDiscordAttachment(attachment, interaction.guildId) : ''; }
+    catch (err) { return interaction.reply({ content: '❌ Bild konnte nicht dauerhaft gespeichert werden: ' + err.message, ...EPHEMERAL }); }
+    const schedule = { id, active: true, channelId: channel.id, text, image, color, intervalMs, intervalLabel: `${amount} ${unit}`, nextRunAt: new Date(Date.now() + intervalMs).toISOString(), createdAt: new Date().toISOString(), createdBy: interaction.user.id };
     config.recurringMessages = [...(config.recurringMessages || []), schedule];
     try {
       await saveGuildSettings(interaction.guildId, config, interaction.user.id);
