@@ -192,11 +192,14 @@ const commands = [
     { name: 'user', description: 'Soldat', type: 6, required: true },
     { name: 'beschreibung', description: 'Aktivität oder Dienstereignis', type: 3, required: true }
   ]},
-  { name: 'embed-bearbeiten', description: 'Bearbeitet eine zuvor mit /embed gesendete Components-V2-Nachricht.', options: [
+  { name: 'embed-bearbeiten', description: 'Bearbeitet ein gespeichertes Components-V2-Embed per Command.', options: [
     { name: 'nachricht_id', description: 'Discord-Nachrichten-ID', type: 3, required: true },
     { name: 'titel', description: 'Neuer Titel', type: 3, required: false },
-    { name: 'text', description: 'Neuer Text', type: 3, required: false },
-    { name: 'bild_url', description: 'Neue Bild-URL', type: 3, required: false }
+    { name: 'text', description: 'Neuer Beschreibungstext', type: 3, required: false },
+    { name: 'bild_url', description: 'Neue Bild-URL', type: 3, required: false },
+    { name: 'thumbnail_url', description: 'Neue Thumbnail-URL', type: 3, required: false },
+    { name: 'farbe', description: 'Neue Embed-Farbe als HEX, z. B. #5865F2', type: 3, required: false },
+    { name: 'footer', description: 'Neuer Footer-Text', type: 3, required: false }
   ]},
 
 ];

@@ -537,10 +537,20 @@ module.exports = async (interaction, client) => {
     const title = interaction.options.getString('titel');
     const description = interaction.options.getString('text');
     const image = interaction.options.getString('bild_url');
+    const thumbnail = interaction.options.getString('thumbnail_url');
+    const color = interaction.options.getString('farbe');
+    const footer = interaction.options.getString('footer');
     if (title !== null) payload.title = title;
     if (description !== null) payload.description = description;
     if (image !== null) payload.image = image;
-    if (title === null && description === null && image === null) return interaction.reply({ content: '❌ Gib mindestens titel, text oder bild_url an.', ...EPHEMERAL });
+    if (thumbnail !== null) payload.thumbnail = thumbnail;
+    if (color !== null) {
+      const cleanColor = color.replace(/^#/, '');
+      if (!/^[0-9a-fA-F]{6}$/.test(cleanColor)) return interaction.reply({ content: '❌ Die Farbe muss ein HEX-Code sein, z. B. #5865F2.', ...EPHEMERAL });
+      payload.color = '#' + cleanColor;
+    }
+    if (footer !== null) payload.footer = footer;
+    if ([title, description, image, thumbnail, color, footer].every(value => value === null)) return interaction.reply({ content: '❌ Gib mindestens eine Eigenschaft zum Ändern an.', ...EPHEMERAL });
     const channel = await interaction.guild.channels.fetch(record.channel_id);
     const message = await channel.messages.fetch(record.message_id);
     await message.edit({ components: [embedV2(payload)], flags: V2, allowedMentions: { parse: [] } });
