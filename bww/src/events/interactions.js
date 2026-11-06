@@ -26,18 +26,8 @@ function selfRoleIsAssignable(role, botMember) {
     PermissionFlagsBits.ManageThreads | PermissionFlagsBits.ManageGuildExpressions |
     PermissionFlagsBits.KickMembers | PermissionFlagsBits.BanMembers |
     PermissionFlagsBits.ModerateMembers | PermissionFlagsBits.MentionEveryone;
-  return !role.permissions.has(dangerous);
+  return !role.permissions.any(dangerous);
 }
-function buildSelfRoleRow(messageId, roles) {
-  const menu = new StringSelectMenuBuilder()
-    .setCustomId('bww_selfroles_' + messageId)
-    .setPlaceholder('Wähle deine Rollen aus …')
-    .setMinValues(0)
-    .setMaxValues(roles.length)
-    .addOptions(roles.map(role => ({ label: role.name.slice(0, 100), value: role.id, description: ('Rolle: ' + role.name).slice(0, 100) })));
-  return new ActionRowBuilder().addComponents(menu);
-}
-
 function hasGiveawayManagePermission(interaction, config) {
   if (interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) return true;
   const roles = config.permissions['giveaway'] || [];
@@ -66,6 +56,28 @@ module.exports = async (interaction, client) => {
     return interaction.respond([]);
   }
   const config = await getGuildSettings(interaction.guildId);
+  if (interaction.isButton() && interaction.customId.startsWith('bww_selfrole_')) {
+    const parts = interaction.customId.slice('bww_selfrole_'.length).split('_');
+    const panelKey = parts.shift();
+    const roleId = parts.join('_');
+    const panel = config.selfRoles?.panels?.[panelKey];
+    if (!panel || !roleId || !(panel.buttons || []).some(button => button.roleId === roleId)) return interaction.reply({ content: '❌ Dieses Self-Role-Panel ist nicht mehr gültig.', ...EPHEMERAL });
+    const role = interaction.guild.roles.cache.get(roleId) || await interaction.guild.roles.fetch(roleId).catch(() => null);
+    const botMember = await interaction.guild.members.fetchMe();
+    if (!selfRoleIsAssignable(role, botMember)) return interaction.reply({ content: '❌ Diese Rolle kann nicht mehr selbst vergeben werden. Bitte informiere die Administration.', ...EPHEMERAL });
+    const member = await interaction.guild.members.fetch(interaction.user.id);
+    try {
+      if (member.roles.cache.has(role.id)) {
+        await member.roles.remove(role, 'Self-Role-Button');
+        return interaction.reply({ content: '➖ Rolle **' + role.name + '** wurde entfernt.', ...EPHEMERAL });
+      }
+      await member.roles.add(role, 'Self-Role-Button');
+      return interaction.reply({ content: '✅ Rolle **' + role.name + '** wurde hinzugefügt.', ...EPHEMERAL });
+    } catch (error) {
+      console.error('[BWW Self-Roles] Button-Rollenänderung fehlgeschlagen:', error.message);
+      return interaction.reply({ content: '❌ Die Rolle konnte nicht geändert werden. Prüfe meine Berechtigung „Rollen verwalten“ und die Rollenposition.', ...EPHEMERAL });
+    }
+  }
   if (interaction.isButton() && interaction.customId === 'bww_verify') {
     if (!config.verify.roleId) return interaction.reply({ content: '❌ Keine Verifizierungsrolle eingerichtet.', ...EPHEMERAL });
     const role = interaction.guild.roles.cache.get(config.verify.roleId) || await interaction.guild.roles.fetch(config.verify.roleId).catch(() => null);
@@ -174,25 +186,52 @@ module.exports = async (interaction, client) => {
     const botMember = await interaction.guild.members.fetchMe();
     const channelPermissions = channel.permissionsFor(botMember);
     if (!channelPermissions?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks])) return interaction.reply({ content: '❌ Mir fehlen im Zielkanal die Rechte zum Ansehen, Schreiben oder Einbetten von Links.', ...EPHEMERAL });
-    const roleIds = [];
-    for (let i = 1; i <= 10; i++) {
+    const buttons = [];
+    for (let i = 1; i <= 5; i++) {
       const role = interaction.options.getRole('rolle' + i);
       if (!role) continue;
-      if (roleIds.includes(role.id)) continue;
-      if (!selfRoleIsAssignable(role, botMember)) return interaction.reply({ content: '❌ Die Rolle **' + role.name + '** ist nicht als Self-Role geeignet. Sie ist verwaltet, zu hoch oder besitzt gefährliche Berechtigungen.', ...EPHEMERAL });
-      roleIds.push(role.id);
+      if (!selfRoleIsAssignable(role, botMember)) return interaction.reply({ content: '❌ Die Rolle **' + role.name + '** ist nicht als Self-Role geeignet.', ...EPHEMERAL });
+      if (buttons.some(button => button.roleId === role.id)) return interaction.reply({ content: '❌ Dieselbe Rolle darf nicht mehrfach im Panel vorkommen.', ...EPHEMERAL });
+      const label = (interaction.options.getString('name' + i) || role.name).trim().slice(0, 80);
+      const style = interaction.options.getString('farbe' + i) || 'secondary';
+      const emoji = (interaction.options.getString('emoji' + i) || '').trim().slice(0, 100);
+      buttons.push({ roleId: role.id, label: label || role.name.slice(0, 80), style, emoji });
     }
-    if (!roleIds.length) return interaction.reply({ content: '❌ Gib mindestens eine Rolle über rolle1 bis rolle10 an.', ...EPHEMERAL });
-    const roles = roleIds.map(id => interaction.guild.roles.cache.get(id)).filter(Boolean);
-    const title = (interaction.options.getString('titel') || 'Wähle deine Rollen').slice(0, 200);
-    const description = (interaction.options.getString('beschreibung') || 'Wähle eine oder mehrere Rollen aus dem Menü. Deine Auswahl kannst du jederzeit ändern.').slice(0, 1800);
-    const message = await channel.send({ content: '**' + title + '**\n' + description + '\n\n' + roles.map(role => '• ' + role.name).join('\n'), allowedMentions: { parse: [] } });
-    await message.edit({ components: [buildSelfRoleRow(message.id, roles)], allowedMentions: { parse: [] } });
+    if (!buttons.length) return interaction.reply({ content: '❌ Gib mindestens eine Rolle an.', ...EPHEMERAL });
+    const title = (interaction.options.getString('titel') || 'Wähle deine Rollen').trim().slice(0, 200);
+    const description = interaction.options.getString('beschreibung', true).trim().slice(0, 3500);
+    const rawColor = interaction.options.getString('embed_farbe') || '#2F3136';
+    const cleanColor = rawColor.replace(/^#/, '');
+    if (!/^[0-9a-fA-F]{6}$/.test(cleanColor)) return interaction.reply({ content: '❌ Die Embed-Farbe muss ein HEX-Code sein, z. B. #5865F2.', ...EPHEMERAL });
+    for (const button of buttons) {
+      if (button.emoji) {
+        try { new ButtonBuilder().setEmoji({ name: button.emoji }); }
+        catch { return interaction.reply({ content: '❌ Das Emoji bei ' + button.label + ' ist ungültig. Nutze ein einzelnes Unicode-Emoji.', ...EPHEMERAL }); }
+      }
+    }
+    const panelKey = require('crypto').randomBytes(6).toString('hex');
+    const panelComponents = embedV2({
+      color: '#' + cleanColor,
+      components: [
+        { type: 'text', content: ['## ' + title, description].filter(Boolean).join('\n') },
+        { type: 'buttons', buttons: buttons.map(button => ({
+          label: button.label, emoji: button.emoji || undefined, style: button.style,
+          customId: 'bww_selfrole_' + panelKey + '_' + button.roleId
+        })) }
+      ]
+    });
     config.selfRoles = config.selfRoles || { panels: {} };
     config.selfRoles.panels = config.selfRoles.panels || {};
-    config.selfRoles.panels[message.id] = { channelId: channel.id, roleIds };
+    config.selfRoles.panels[panelKey] = { channelId: channel.id, buttons };
     await saveGuildSettings(interaction.guildId, config, interaction.user.id);
-    return interaction.reply({ content: '✅ Self-Role-Panel wurde in ' + channel + ' erstellt. Mitglieder können ihre Rollen jetzt selbst auswählen.', ...EPHEMERAL });
+    try {
+      await channel.send({ components: [panelComponents], flags: MessageFlags.IsComponentsV2, allowedMentions: { parse: [] } });
+    } catch (error) {
+      delete config.selfRoles.panels[panelKey];
+      await saveGuildSettings(interaction.guildId, config, interaction.user.id).catch(() => {});
+      throw error;
+    }
+    return interaction.reply({ content: '✅ Self-Role-Panel wurde in ' + channel + ' erstellt. Embed-Text, Embed-Farbe, Button-Namen, Button-Farben und Emojis wurden gespeichert.', ...EPHEMERAL });
   }
   if (command.startsWith('einheit-')) return handleUnitCommand(interaction, config);
   if (command.startsWith('setup-')) {
@@ -547,7 +586,7 @@ module.exports = async (interaction, client) => {
   }
   if (command === 'setup') {
     const container = new ContainerBuilder().setAccentColor(0x2F3136);
-    container.addTextDisplayComponents(new TextDisplayBuilder().setContent('## BWW Setup\n`/setup-welcome` [channel] [text] [title?] → Welcome\n`/setup-verify` → Verify\n`/setup-ticket` [kategorie] [rolle] → Ticket\n`/setup-status` [channel] → Status-Embed\n`/setup-permission` → Command-Berechtigungen\n`/restart` → Bot neu starten\n`/wartung` → Wartung an/aus\n`/panel-create` → Custom Panel (10 Buttons) speichern+senden\n`/panel-add-button` → Button hinzufügen\n`/panel-send`/`/panel-delete`/`/panel-list` → Panels verwalten\n`/nachricht-wiederholen` → Nachricht regelmäßig senden\n`/wiederholung-stoppen`/`/wiederholung-liste` → Wiederholungen verwalten\n`/embed` → Embed mit HEX-Farbe und Bild-Upload\n`/kick`, `/ban`, `/unban`, `/timeout` → Moderation\n`/giverole`, `/removerole` → Rollen verwalten\n`/selfrollen-panel` → Self-Role-Menü erstellen\n`/einheit-erstellen` → Kompanien, Züge und Gruppen\n`/einheit-liste`, `/einheit-info` → Einheiten anzeigen\n`/einheit-mitglied`, `/einheit-entfernen` → Personalverwaltung'));
+    container.addTextDisplayComponents(new TextDisplayBuilder().setContent('## BWW Setup\n`/setup-welcome` [channel] [text] [title?] → Welcome\n`/setup-verify` → Verify\n`/setup-ticket` [kategorie] [rolle] → Ticket\n`/setup-status` [channel] → Status-Embed\n`/setup-permission` → Command-Berechtigungen\n`/restart` → Bot neu starten\n`/wartung` → Wartung an/aus\n`/panel-create` → Custom Panel (10 Buttons) speichern+senden\n`/panel-add-button` → Button hinzufügen\n`/panel-send`/`/panel-delete`/`/panel-list` → Panels verwalten\n`/nachricht-wiederholen` → Nachricht regelmäßig senden\n`/wiederholung-stoppen`/`/wiederholung-liste` → Wiederholungen verwalten\n`/embed` → Embed mit HEX-Farbe und Bild-Upload\n`/kick`, `/ban`, `/unban`, `/timeout` → Moderation\n`/giverole`, `/removerole` → Rollen verwalten\n`/selfrollen-panel` → Self-Role-Panel mit Embed und Rollen-Buttons erstellen verwalten\n`/selfrollen-panel` → Self-Role-Menü erstellen\n`/einheit-erstellen` → Kompanien, Züge und Gruppen\n`/einheit-liste`, `/einheit-info` → Einheiten anzeigen\n`/einheit-mitglied`, `/einheit-entfernen` → Personalverwaltung'));
     container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true));
     container.addTextDisplayComponents(new TextDisplayBuilder().setContent('**Welcome-Platzhalter:**\n`{user}` → Ping\n`{username}` → Name\n`{displayname}` → Server-Nickname\n`{server}` → Servername\n`{id}` → User-ID\n`{count}` → Mitgliederzahl\n\nDer Avatar des Users erscheint automatisch oben rechts.'));
     return interaction.reply({ components: [container], flags: EPHEMERAL_V2 });
