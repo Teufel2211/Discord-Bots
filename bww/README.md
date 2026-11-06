@@ -149,17 +149,22 @@ Bei `/panel-create` müssen für jeden Button sowohl ein Label als auch ein Antw
 | `/setup-welcome` | Konfiguriert den Begrüßungskanal, den Text und optional einen Titel. |
 | `/setup-verify` | Konfiguriert den Verifizierungskanal, die Rolle und den Nachrichtentext. |
 | `/verify` | Sendet das konfigurierte Verifizierungs-Panel. |
-| `/selfrollen-panel` | Erstellt ein dauerhaftes Self-Role-Menü mit bis zu zehn auswählbaren Rollen. |
+| `/selfrollen-panel` | Erstellt ein gestaltetes Self-Role-Embed mit bis zu fünf individuell konfigurierbaren Rollen-Buttons. |
 | `/setup-ticket` | Konfiguriert die Ticket-Kategorie und die Support-Rolle. |
 | `/ticket` | Sendet das Ticket-Panel. |
 | `/umfrage` | Erstellt eine Umfrage mit zwei bis fünf Antwortoptionen und Live-Zähler. |
 
 **Self-Role-System:**
-- Administratoren erstellen mit `/selfrollen-panel kanal:#rollen rolle1:@... rolle2:@...` ein dauerhaftes Auswahlmenü.
-- Bis zu zehn freigegebene Rollen können in einem Menü angeboten werden. Mitglieder können mehrere Rollen auswählen und ihre Auswahl jederzeit ändern oder leeren.
-- Bei jeder Auswahl werden nur die Rollen dieses Panels angepasst; andere Serverrollen bleiben unverändert.
-- Rollen mit Administrator-, Moderations-, Verwaltungs- oder Kanalverwaltungsrechten sowie verwaltete Rollen und Rollen oberhalb der Bot-Rolle werden abgelehnt.
-- Der Bot benötigt im Zielserver die Berechtigung **Rollen verwalten** und muss in der Rollen-Hierarchie über den angebotenen Rollen stehen.
+- Administratoren erstellen mit `/selfrollen-panel` ein dauerhaftes Components-V2-Panel in einem ausgewählten Textkanal.
+- Der Embed-Titel, der Beschreibungstext und die Embed-Akzentfarbe (HEX, z. B. `#5865F2`) können frei festgelegt werden.
+- Bis zu fünf Rollen-Buttons pro Panel. Jeder Button hat einen frei wählbaren Namen, eine eigene Farbe (Blau, Grau, Grün oder Rot) und optional ein Emoji.
+- Ein Klick fügt die zugehörige Rolle hinzu; ein weiterer Klick auf denselben Button entfernt sie wieder.
+- Panel-Konfigurationen und erlaubte Rollen-IDs werden in den vorhandenen Guild-Settings gespeichert; es ist keine zusätzliche SQL-Migration erforderlich.
+- Rollen mit administrativen oder moderierenden Berechtigungen, verwaltete Rollen sowie Rollen auf oder über der Bot-Rollenposition werden abgelehnt.
+- Der Bot benötigt die Berechtigung **Rollen verwalten** und muss in der Rollen-Hierarchie über den angebotenen Rollen stehen.
+
+**Beispiel:**
+`/selfrollen-panel kanal:#rollen beschreibung:Wähle deine Benachrichtigungen titel:Benachrichtigungen embed_farbe:#5865F2 rolle1:@News name1:News farbe1:primary emoji1:📢 rolle2:@Events name2:Events farbe2:success emoji2:🎉`
 
 Ticket-Gründe im aktuellen System:
 - Allgemeine Frage
