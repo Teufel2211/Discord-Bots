@@ -4,7 +4,7 @@ const BUCKET = 'bww-recurring-images';
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
 function getStorageConfig() {
-  const url = String(process.env.SUPABASE_URL || '').replace(/\\/$/, '');
+  const url = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
   const key = process.env.SUPABASE_SECRET_KEY || '';
   if (!url || !key) throw new Error('Supabase Storage ist nicht konfiguriert.');
   return { url, key };
@@ -51,7 +51,7 @@ async function saveDiscordAttachment(attachment, guildId) {
 }
 
 async function migrateDiscordImageUrl(imageUrl, guildId) {
-  if (!imageUrl || !/https?:\\/\\/(?:cdn|media)\\.discordapp\\.net\\//i.test(imageUrl)) return imageUrl || '';
+  if (!imageUrl || !/^https?:\/\/(?:cdn|media)\.discordapp\.net\//i.test(imageUrl)) return imageUrl || '';
   const response = await fetch(imageUrl, { signal: AbortSignal.timeout(15_000) });
   if (!response.ok) throw new Error('Das bisherige Discord-Bild ist bereits abgelaufen und kann nicht mehr übernommen werden.');
   const contentType = response.headers.get('content-type') || '';
