@@ -199,7 +199,17 @@ const commands = [
     { name: 'bild_url', description: 'Neue Bild-URL', type: 3, required: false },
     { name: 'thumbnail_url', description: 'Neue Thumbnail-URL', type: 3, required: false },
     { name: 'farbe', description: 'Neue Embed-Farbe als HEX, z. B. #5865F2', type: 3, required: false },
-    { name: 'footer', description: 'Neuer Footer-Text', type: 3, required: false }
+    { name: 'footer', description: 'Neuer Footer-Text', type: 3, required: false },
+    { name: 'button1_name', description: 'Self-Role Button 1: neuer Name', type: 3, required: false },
+    { name: 'button2_name', description: 'Self-Role Button 2: neuer Name', type: 3, required: false },
+    { name: 'button3_name', description: 'Self-Role Button 3: neuer Name', type: 3, required: false },
+    { name: 'button4_name', description: 'Self-Role Button 4: neuer Name', type: 3, required: false },
+    { name: 'button5_name', description: 'Self-Role Button 5: neuer Name', type: 3, required: false },
+    { name: 'button1_farbe', description: 'Self-Role Button 1: primary/secondary/success/danger', type: 3, required: false },
+    { name: 'button2_farbe', description: 'Self-Role Button 2: primary/secondary/success/danger', type: 3, required: false },
+    { name: 'button3_farbe', description: 'Self-Role Button 3: primary/secondary/success/danger', type: 3, required: false },
+    { name: 'button4_farbe', description: 'Self-Role Button 4: primary/secondary/success/danger', type: 3, required: false },
+    { name: 'button5_farbe', description: 'Self-Role Button 5: primary/secondary/success/danger', type: 3, required: false }
   ]},
 
 ];
