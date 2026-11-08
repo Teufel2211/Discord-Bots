@@ -223,10 +223,18 @@ module.exports = async (interaction, client) => {
     });
     config.selfRoles = config.selfRoles || { panels: {} };
     config.selfRoles.panels = config.selfRoles.panels || {};
-    config.selfRoles.panels[panelKey] = { channelId: channel.id, buttons };
+    config.selfRoles.panels[panelKey] = {
+      channelId: channel.id,
+      buttons,
+      title,
+      description,
+      color: '#' + cleanColor
+    };
     await saveGuildSettings(interaction.guildId, config, interaction.user.id);
     try {
-      await channel.send({ components: [panelComponents], flags: MessageFlags.IsComponentsV2, allowedMentions: { parse: [] } });
+      const sentMessage = await channel.send({ components: [panelComponents], flags: MessageFlags.IsComponentsV2, allowedMentions: { parse: [] } });
+      config.selfRoles.panels[panelKey].messageId = sentMessage.id;
+      await saveGuildSettings(interaction.guildId, config, interaction.user.id);
     } catch (error) {
       delete config.selfRoles.panels[panelKey];
       await saveGuildSettings(interaction.guildId, config, interaction.user.id).catch(() => {});
@@ -530,27 +538,116 @@ module.exports = async (interaction, client) => {
   }
   if (command === 'embed-bearbeiten') {
     const messageId = interaction.options.getString('nachricht_id', true);
-    const response = await supabaseRequest('bww_embed_messages?select=*&guild_id=eq.' + interaction.guildId + '&message_id=eq.' + messageId + '&limit=1', { headers: { Prefer: 'return=representation' } });
-    const [record] = await response.json();
-    if (!record) return interaction.reply({ content: '❌ Diese Nachricht ist nicht als bearbeitbares BWW-Embed gespeichert. Nutze zuerst /embed.', ...EPHEMERAL });
-    const payload = { ...record.payload };
-    const title = interaction.options.getString('titel');
-    const description = interaction.options.getString('text');
+    const titleOption = interaction.options.getString('titel');
+    const descriptionOption = interaction.options.getString('text');
     const image = interaction.options.getString('bild_url');
     const thumbnail = interaction.options.getString('thumbnail_url');
-    const color = interaction.options.getString('farbe');
+    const colorOption = interaction.options.getString('farbe');
     const footer = interaction.options.getString('footer');
-    if (title !== null) payload.title = title;
-    if (description !== null) payload.description = description;
+
+    const response = await supabaseRequest('bww_embed_messages?select=*&guild_id=eq.' + interaction.guildId + '&message_id=eq.' + messageId + '&limit=1', { headers: { Prefer: 'return=representation' } });
+    const [record] = await response.json();
+
+    if (!record) {
+      const panelEntries = Object.entries(config.selfRoles?.panels || {});
+      let matchedPanel = null;
+      let matchedPanelKey = null;
+      let matchedChannel = null;
+      let matchedMessage = null;
+
+      for (const [panelKey, panel] of panelEntries) {
+        if (!panel?.channelId || !Array.isArray(panel.buttons) || !panel.buttons.length) continue;
+        if (panel.messageId && panel.messageId !== messageId) continue;
+        const channel = await interaction.guild.channels.fetch(panel.channelId).catch(() => null);
+        if (!channel?.messages) continue;
+        const message = await channel.messages.fetch(messageId).catch(() => null);
+        if (!message) continue;
+
+        const rawComponents = (message.components || []).map(component =>
+          typeof component.toJSON === 'function' ? component.toJSON() : component
+        );
+        const containsPanelButton = (items) => (items || []).some(component =>
+          (typeof component.custom_id === 'string' && component.custom_id.startsWith('bww_selfrole_' + panelKey + '_')) ||
+          (typeof component.customId === 'string' && component.customId.startsWith('bww_selfrole_' + panelKey + '_')) ||
+          containsPanelButton(component.components)
+        );
+        if (!containsPanelButton(rawComponents)) continue;
+
+        matchedPanel = panel;
+        matchedPanelKey = panelKey;
+        matchedChannel = channel;
+        matchedMessage = message;
+        break;
+      }
+
+      if (!matchedPanel) {
+        return interaction.reply({ content: '❌ Diese Nachricht ist weder als /embed gespeichert noch ein bekanntes /selfrollen-panel. Prüfe die Nachrichten-ID.', ...EPHEMERAL });
+      }
+
+      const rawComponents = (matchedMessage.components || []).map(component =>
+        typeof component.toJSON === 'function' ? component.toJSON() : component
+      );
+      const textParts = [];
+      const collectText = (items) => {
+        for (const component of items || []) {
+          if ((component.type === 10 || component.type === 'text_display') && component.content) textParts.push(component.content);
+          if (Array.isArray(component.components)) collectText(component.components);
+        }
+      };
+      collectText(rawComponents);
+
+      const existingText = textParts.join('\n').trim();
+      const textLines = existingText.split('\n');
+      const parsedTitle = textLines[0]?.startsWith('## ') ? textLines.shift().slice(3) : '';
+      let panelTitle = matchedPanel.title ?? parsedTitle;
+      let panelDescription = matchedPanel.description ?? textLines.join('\n');
+      let panelColor = matchedPanel.color || matchedMessage.components?.[0]?.accentColor || '#2F3136';
+
+      if (titleOption !== null) panelTitle = titleOption;
+      if (descriptionOption !== null) panelDescription = descriptionOption;
+      if (colorOption !== null) {
+        const cleanColor = colorOption.replace(/^#/, '');
+        if (!/^[0-9a-fA-F]{6}$/.test(cleanColor)) return interaction.reply({ content: '❌ Die Farbe muss ein HEX-Code sein, z. B. #5865F2.', ...EPHEMERAL });
+        panelColor = '#' + cleanColor;
+      }
+      if ([titleOption, descriptionOption, colorOption].every(value => value === null)) {
+        return interaction.reply({ content: '❌ Bei einem Self-Role-Panel kannst du mindestens Titel, Text oder Farbe ändern. Die Rollen-Buttons bleiben unverändert.', ...EPHEMERAL });
+      }
+
+      const updatedComponents = embedV2({
+        color: panelColor,
+        components: [
+          { type: 'text', content: [panelTitle && '## ' + panelTitle, panelDescription].filter(Boolean).join('\n') },
+          { type: 'buttons', buttons: matchedPanel.buttons.map(button => ({
+            label: button.label,
+            emoji: button.emoji || undefined,
+            style: button.style || 'secondary',
+            customId: 'bww_selfrole_' + matchedPanelKey + '_' + button.roleId
+          })) }
+        ]
+      });
+      await matchedMessage.edit({ components: [updatedComponents], flags: V2, allowedMentions: { parse: [] } });
+
+      matchedPanel.title = panelTitle;
+      matchedPanel.description = panelDescription;
+      matchedPanel.color = panelColor;
+      matchedPanel.messageId = matchedMessage.id;
+      await saveGuildSettings(interaction.guildId, config, interaction.user.id);
+      return interaction.reply({ content: '✅ Self-Role-Panel wurde bearbeitet. Alle Rollen-Buttons, Rollen-Zuordnungen und ihre Funktionen wurden beibehalten.', ...EPHEMERAL });
+    }
+
+    const payload = { ...record.payload };
+    if (titleOption !== null) payload.title = titleOption;
+    if (descriptionOption !== null) payload.description = descriptionOption;
     if (image !== null) payload.image = image;
     if (thumbnail !== null) payload.thumbnail = thumbnail;
-    if (color !== null) {
-      const cleanColor = color.replace(/^#/, '');
+    if (colorOption !== null) {
+      const cleanColor = colorOption.replace(/^#/, '');
       if (!/^[0-9a-fA-F]{6}$/.test(cleanColor)) return interaction.reply({ content: '❌ Die Farbe muss ein HEX-Code sein, z. B. #5865F2.', ...EPHEMERAL });
       payload.color = '#' + cleanColor;
     }
     if (footer !== null) payload.footer = footer;
-    if ([title, description, image, thumbnail, color, footer].every(value => value === null)) return interaction.reply({ content: '❌ Gib mindestens eine Eigenschaft zum Ändern an.', ...EPHEMERAL });
+    if ([titleOption, descriptionOption, image, thumbnail, colorOption, footer].every(value => value === null)) return interaction.reply({ content: '❌ Gib mindestens eine Eigenschaft zum Ändern an.', ...EPHEMERAL });
     const channel = await interaction.guild.channels.fetch(record.channel_id);
     const message = await channel.messages.fetch(record.message_id);
     await message.edit({ components: [embedV2(payload)], flags: V2, allowedMentions: { parse: [] } });
