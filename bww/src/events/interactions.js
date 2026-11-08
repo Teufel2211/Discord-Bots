@@ -631,6 +631,9 @@ module.exports = async (interaction, client) => {
       matchedPanel.title = panelTitle;
       matchedPanel.description = panelDescription;
       matchedPanel.color = panelColor;
+      matchedPanel.image = panelImage;
+      matchedPanel.thumbnail = panelThumbnail;
+      matchedPanel.footer = panelFooter;
       matchedPanel.messageId = matchedMessage.id;
       await saveGuildSettings(interaction.guildId, config, interaction.user.id);
       return interaction.reply({ content: '✅ Self-Role-Panel wurde bearbeitet. Alle Rollen-Buttons, Rollen-Zuordnungen und ihre Funktionen wurden beibehalten.', ...EPHEMERAL });
