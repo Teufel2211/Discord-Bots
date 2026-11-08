@@ -601,7 +601,11 @@ module.exports = async (interaction, client) => {
       const parsedTitle = textLines[0]?.startsWith('## ') ? textLines.shift().slice(3) : '';
       let panelTitle = matchedPanel.title ?? parsedTitle;
       let panelDescription = matchedPanel.description ?? textLines.join('\n');
-      let panelColor = matchedPanel.color || matchedMessage.components?.[0]?.accentColor || '#2F3136';
+      const accentColor = matchedMessage.components?.[0]?.accentColor;
+      let panelColor = matchedPanel.color || (Number.isInteger(accentColor) ? '#' + accentColor.toString(16).padStart(6, '0') : '#2F3136');
+      let panelImage = matchedPanel.image || '';
+      let panelThumbnail = matchedPanel.thumbnail || '';
+      let panelFooter = matchedPanel.footer || '';
 
       if (titleOption !== null) panelTitle = titleOption;
       if (descriptionOption !== null) panelDescription = descriptionOption;
@@ -610,22 +614,32 @@ module.exports = async (interaction, client) => {
         if (!/^[0-9a-fA-F]{6}$/.test(cleanColor)) return interaction.reply({ content: '❌ Die Farbe muss ein HEX-Code sein, z. B. #5865F2.', ...EPHEMERAL });
         panelColor = '#' + cleanColor;
       }
-      if ([titleOption, descriptionOption, colorOption].every(value => value === null)) {
-        return interaction.reply({ content: '❌ Bei einem Self-Role-Panel kannst du mindestens Titel, Text oder Farbe ändern. Die Rollen-Buttons bleiben unverändert.', ...EPHEMERAL });
+      if (image !== null) panelImage = image;
+      if (thumbnail !== null) panelThumbnail = thumbnail;
+      if (footer !== null) panelFooter = footer;
+      if ([titleOption, descriptionOption, image, thumbnail, colorOption, footer].every(value => value === null)) {
+        return interaction.reply({ content: '❌ Gib mindestens eine Eigenschaft zum Ändern an.', ...EPHEMERAL });
       }
 
-      const updatedComponents = embedV2({
-        color: panelColor,
-        components: [
-          { type: 'text', content: [panelTitle && '## ' + panelTitle, panelDescription].filter(Boolean).join('\n') },
-          { type: 'buttons', buttons: matchedPanel.buttons.map(button => ({
-            label: button.label,
-            emoji: button.emoji || undefined,
-            style: button.style || 'secondary',
-            customId: 'bww_selfrole_' + matchedPanelKey + '_' + button.roleId
-          })) }
-        ]
-      });
+      const panelText = [panelTitle && '## ' + panelTitle, panelDescription].filter(Boolean).join('\n');
+      const panelComponents = [];
+      if (panelThumbnail && panelText) {
+        panelComponents.push({ type: 'section', texts: [panelText], accessory: { type: 'thumbnail', url: panelThumbnail } });
+      } else if (panelText) {
+        panelComponents.push({ type: 'text', content: panelText });
+      }
+      if (panelImage) panelComponents.push({ type: 'media_gallery', items: [{ url: panelImage, description: panelTitle || 'Self-Role-Panel' }] });
+      if (panelFooter) {
+        panelComponents.push({ type: 'separator', divider: false });
+        panelComponents.push({ type: 'text', content: '-# ' + panelFooter });
+      }
+      panelComponents.push({ type: 'buttons', buttons: matchedPanel.buttons.map(button => ({
+        label: button.label,
+        emoji: button.emoji || undefined,
+        style: button.style || 'secondary',
+        customId: 'bww_selfrole_' + matchedPanelKey + '_' + button.roleId
+      })) });
+      const updatedComponents = embedV2({ color: panelColor, components: panelComponents });
       await matchedMessage.edit({ components: [updatedComponents], flags: V2, allowedMentions: { parse: [] } });
 
       matchedPanel.title = panelTitle;
