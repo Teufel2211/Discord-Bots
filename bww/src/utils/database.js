@@ -14,11 +14,6 @@ const DEFAULT_SETTINGS = Object.freeze({
     message: 'Klicke auf den Button, um dich zu verifizieren.',
     roleId: ''
   },
-  ticket: {
-    enabled: false,
-    categoryId: '',
-    roleId: ''
-  },
   status: {
     enabled: false,
     channelId: '',
@@ -46,7 +41,6 @@ function mergeSettings(value) {
   return {
     welcome: { ...DEFAULT_SETTINGS.welcome, ...(parsed.welcome || {}) },
     verify: { ...DEFAULT_SETTINGS.verify, ...(parsed.verify || {}) },
-    ticket: { ...DEFAULT_SETTINGS.ticket, ...(parsed.ticket || {}) },
     status: { ...DEFAULT_SETTINGS.status, ...(parsed.status || {}) },
     permissions: parsed.permissions && typeof parsed.permissions === 'object' && !Array.isArray(parsed.permissions)
       ? Object.fromEntries(Object.entries(parsed.permissions).map(([key, roles]) => [
@@ -123,7 +117,6 @@ async function patchGuildSettings(guildId, patch, updatedBy = null) {
     ...patch,
     welcome: { ...current.welcome, ...(patch?.welcome || {}) },
     verify: { ...current.verify, ...(patch?.verify || {}) },
-    ticket: { ...current.ticket, ...(patch?.ticket || {}) },
     status: { ...current.status, ...(patch?.status || {}) },
     permissions: { ...current.permissions, ...(patch?.permissions || {}) }
   });

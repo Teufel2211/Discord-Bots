@@ -56,8 +56,6 @@ const commands = [
   { name: 'wiederholung-liste', description: 'Zeigt aktive wiederkehrende Nachrichten.' },
   { name: 'setup', description: 'Zeigt die Setup-Hilfe.' },
   { name: 'verify', description: 'Sendet das konfigurierte Verify-System.' },
-
-  { name: 'ticket', description: 'Sendet das Ticket-Panel.' },
   { name: 'giveaway', description: 'Startet ein Giveaway mit Teilnahmebedingungen.', options: [
     { name: 'preis', description: 'Was wird verlost?', type: 3, required: true },
     { name: 'dauer', description: 'Dauer in Sekunden', type: 4, required: true, min_value: 60, max_value: 2592000 },
@@ -122,12 +120,8 @@ const commands = [
     { name: 'role', description: 'Verifizierungsrolle', type: 8, required: true },
     { name: 'text', description: 'Text des Verify-Embeds', type: 3, required: true }
   ]},
-  { name: 'setup-ticket', description: 'Ticket-System konfigurieren.', options: [
-    { name: 'kategorie', description: 'Kategorie f\u00FCr Ticket-Kan\u00E4le', type: 7, required: true, channel_types: [4] },
-    { name: 'rolle', description: 'Ticket-Rolle mit Kanalzugriff', type: 8, required: true }
-  ]},
   { name: 'setup-permission', description: 'Rollenberechtigung f\u00FCr Commands setzen.', options: [
-    { name: 'command', description: 'Command', type: 3, required: true, choices: [{ name: 'nachricht', value: 'nachricht' }, { name: 'dashboard-code', value: 'dashboard-code' }, { name: 'raid-schutz', value: 'raid-schutz' }, { name: 'raid-lockdown', value: 'raid-lockdown' }, { name: 'raid-entsperren', value: 'raid-entsperren' }, { name: 'dm-senden', value: 'dm-senden' }, { name: 'personalakte', value: 'personalakte' }, { name: 'personalakte-setzen', value: 'personalakte-setzen' }, { name: 'personalakte-befordern', value: 'personalakte-befordern' }, { name: 'personalakte-verwarnen', value: 'personalakte-verwarnen' }, { name: 'personalakte-aktivitaet', value: 'personalakte-aktivitaet' }, { name: 'embed-bearbeiten', value: 'embed-bearbeiten' }, { name: 'embed', value: 'embed' }, { name: 'ticket', value: 'ticket' }, { name: 'giveaway', value: 'giveaway' }, { name: 'einheiten', value: 'einheiten' }, { name: 'setup-status', value: 'setup-status' }, { name: 'wartung', value: 'wartung' }, { name: 'kick', value: 'kick' }, { name: 'ban', value: 'ban' }, { name: 'unban', value: 'unban' }, { name: 'timeout', value: 'timeout' }, { name: 'giverole', value: 'giverole' }, { name: 'removerole', value: 'removerole' }, { name: 'giveaway-protokoll', value: 'giveaway-protokoll' }]},
+    { name: 'command', description: 'Command', type: 3, required: true, choices: [{ name: 'nachricht', value: 'nachricht' }, { name: 'dashboard-code', value: 'dashboard-code' }, { name: 'raid-schutz', value: 'raid-schutz' }, { name: 'raid-lockdown', value: 'raid-lockdown' }, { name: 'raid-entsperren', value: 'raid-entsperren' }, { name: 'dm-senden', value: 'dm-senden' }, { name: 'personalakte', value: 'personalakte' }, { name: 'personalakte-setzen', value: 'personalakte-setzen' }, { name: 'personalakte-befordern', value: 'personalakte-befordern' }, { name: 'personalakte-verwarnen', value: 'personalakte-verwarnen' }, { name: 'personalakte-aktivitaet', value: 'personalakte-aktivitaet' }, { name: 'embed-bearbeiten', value: 'embed-bearbeiten' }, { name: 'embed', value: 'embed' }, { name: 'giveaway', value: 'giveaway' }, { name: 'einheiten', value: 'einheiten' }, { name: 'setup-status', value: 'setup-status' }, { name: 'wartung', value: 'wartung' }, { name: 'kick', value: 'kick' }, { name: 'ban', value: 'ban' }, { name: 'unban', value: 'unban' }, { name: 'timeout', value: 'timeout' }, { name: 'giverole', value: 'giverole' }, { name: 'removerole', value: 'removerole' }, { name: 'giveaway-protokoll', value: 'giveaway-protokoll' }]},
     { name: 'role', description: 'Rolle', type: 8, required: true },
     { name: 'erlauben', description: 'true = erlauben, false = entfernen', type: 5, required: true }
   ]},

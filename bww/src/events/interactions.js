@@ -2,7 +2,6 @@ const { ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, SeparatorSpacing
 const { isAllowed } = require('../commands');
 const { getGuildSettings, saveGuildSettings, supabaseRequest } = require('../utils/database');
 const { embedV2, verifyComponents } = require('../utils/embeds');
-const { ticketContainer, createTicket, TICKET_REASONS } = require('../utils/tickets');
 const { loadGiveaways, saveGiveaways, giveawayContainer, startGiveaway, finalizeGiveaway, rerollGiveaway, updateGiveawayMessage, recordGiveawayEvent, recordGiveawayEntry, getGiveawayAudit } = require('../utils/giveaway');
 const { getPanel, setPanel, deletePanel, loadPanels, panelContainer, buttonResponseContainer, addPanelMessage } = require('../utils/panels');
 const { createStatusMessage, updateStatusMessage } = require('../utils/status');
@@ -34,13 +33,6 @@ function hasGiveawayManagePermission(interaction, config) {
   const roles = config.permissions['giveaway'] || [];
   return roles.some(id => interaction.member?.roles?.cache?.has(id));
 }
-function canCloseTicket(interaction, config) {
-  if (interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) return true;
-  if (config.ticket.roleId && interaction.member?.roles?.cache?.has(config.ticket.roleId)) return true;
-  if (interaction.channel?.name?.startsWith('ticket-') && interaction.channel?.permissionOverwrites?.cache?.has(interaction.user.id)) return true;
-  return false;
-}
-
 module.exports = async (interaction, client) => {
   try {
   if (interaction.isAutocomplete()) {
@@ -86,12 +78,6 @@ module.exports = async (interaction, client) => {
     if (interaction.member.roles.cache.has(role.id)) return interaction.reply({ content: '✅ Du bist bereits verifiziert.', ...EPHEMERAL });
     try { await interaction.member.roles.add(role); } catch { return interaction.reply({ content: '❌ Ich konnte die Rolle nicht vergeben. Prüfe meine Rollenposition.', ...EPHEMERAL }); }
     return interaction.reply({ content: '✅ Du wurdest erfolgreich verifiziert.', ...EPHEMERAL });
-  }
-  if (interaction.isButton() && interaction.customId === 'bww_ticket_close') {
-    if (!canCloseTicket(interaction, config)) return interaction.reply({ content: '❌ Du darfst dieses Ticket nicht schließen.', ...EPHEMERAL });
-    await interaction.reply({ content: '🔒 Ticket wird geschlossen und gelöscht…', ...EPHEMERAL });
-    setTimeout(() => interaction.channel.delete().catch(() => {}), 2000);
-    return;
   }
   if (interaction.isButton() && interaction.customId.startsWith('bww_panel_')) {
     const parts = interaction.customId.split('_');
@@ -172,12 +158,6 @@ module.exports = async (interaction, client) => {
       return interaction.reply({ content: '❌ Rollen konnten nicht geändert werden. Prüfe die Rollenposition und die Berechtigung „Rollen verwalten“ des Bots.', ...EPHEMERAL });
     }
   }
-  if (interaction.isStringSelectMenu() && interaction.customId === 'bww_ticket_select') {
-    const reason = TICKET_REASONS.find(r => r.value === interaction.values[0]);
-    const res = await createTicket(interaction.guild, config, interaction.user, reason ? reason.label : interaction.values[0]);
-    if (!res.ok) return interaction.reply({ content: `❌ ${res.error}`, ...EPHEMERAL });
-    return interaction.reply({ content: `✅ Ticket erstellt: ${res.channel}`, ...EPHEMERAL });
-  }
   if (!interaction.isChatInputCommand()) return;
   const command = interaction.commandName;
   if (command === 'selfrollen-panel') {
@@ -247,7 +227,6 @@ module.exports = async (interaction, client) => {
     if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) return interaction.reply({ content: '❌ Nur Administratoren dürfen das Setup ändern.', ...EPHEMERAL });
     if (command === 'setup-welcome') { config.welcome = { enabled: true, channelId: interaction.options.getChannel('channel').id, title: interaction.options.getString('title') || '', message: interaction.options.getString('text', true) }; await saveGuildSettings(interaction.guildId, config, interaction.user.id); return interaction.reply({ content: '✅ Welcome-System gespeichert.', ...EPHEMERAL }); }
     if (command === 'setup-verify') { config.verify = { enabled: true, channelId: interaction.options.getChannel('channel').id, roleId: interaction.options.getRole('role').id, message: interaction.options.getString('text', true) }; await saveGuildSettings(interaction.guildId, config, interaction.user.id); return interaction.reply({ content: '✅ Verify-System gespeichert.', ...EPHEMERAL }); }
-    if (command === 'setup-ticket') { config.ticket = { enabled: true, categoryId: interaction.options.getChannel('kategorie').id, roleId: interaction.options.getRole('rolle').id }; await saveGuildSettings(interaction.guildId, config, interaction.user.id); return interaction.reply({ content: '✅ Ticket-System gespeichert.', ...EPHEMERAL }); }
     if (command === 'setup-status') {
       const channel = interaction.options.getChannel('channel');
       try {
@@ -705,9 +684,6 @@ module.exports = async (interaction, client) => {
     await supabaseRequest('bww_embed_messages?id=eq.' + record.id, { method: 'PATCH', body: JSON.stringify({ payload, updated_by: interaction.user.id, updated_at: new Date().toISOString() }) });
     return interaction.reply({ content: '✅ Components-V2-Embed wurde bearbeitet.', ...EPHEMERAL });
   }
-  if (command === 'ticket') {
-    try { await interaction.channel.send({ components: [ticketContainer(config)], flags: V2 }); return interaction.reply({ content: '✅ Ticket-Panel gesendet.', ...EPHEMERAL }); } catch (err) { return interaction.reply({ content: `❌ Ticket-Panel fehlgeschlagen: ${err.message}`, ...EPHEMERAL }); }
-  }
   if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
   if (command === 'giveaway') {
     const prize = interaction.options.getString('preis', true); const winners = Math.max(1, interaction.options.getInteger('gewinner') || 1); const durationMs = interaction.options.getInteger('dauer') * 1000 || 60000;
@@ -748,7 +724,7 @@ module.exports = async (interaction, client) => {
   }
   if (command === 'setup') {
     const container = new ContainerBuilder().setAccentColor(0x2F3136);
-    container.addTextDisplayComponents(new TextDisplayBuilder().setContent('## BWW Setup\n`/setup-welcome` [channel] [text] [title?] → Welcome\n`/setup-verify` → Verify\n`/setup-ticket` [kategorie] [rolle] → Ticket\n`/setup-status` [channel] → Status-Embed\n`/setup-permission` → Command-Berechtigungen\n`/restart` → Bot neu starten\n`/wartung` → Wartung an/aus\n`/panel-create` → Custom Panel (10 Buttons) speichern+senden\n`/panel-add-button` → Button hinzufügen\n`/panel-send`/`/panel-delete`/`/panel-list` → Panels verwalten\n`/nachricht-wiederholen` → Nachricht regelmäßig senden\n`/wiederholung-stoppen`/`/wiederholung-liste` → Wiederholungen verwalten\n`/embed` → Embed mit HEX-Farbe und Bild-Upload\n`/kick`, `/ban`, `/unban`, `/timeout` → Moderation\n`/giverole`, `/removerole` → Rollen verwalten\n`/selfrollen-panel` → Self-Role-Panel mit Embed und Rollen-Buttons erstellen verwalten\n`/selfrollen-panel` → Self-Role-Menü erstellen\n`/einheit-erstellen` → Kompanien, Züge und Gruppen\n`/einheit-liste`, `/einheit-info` → Einheiten anzeigen\n`/einheit-mitglied`, `/einheit-entfernen` → Personalverwaltung'));
+    container.addTextDisplayComponents(new TextDisplayBuilder().setContent('## BWW Setup\n`/setup-welcome` [channel] [text] [title?] → Welcome\n`/setup-verify` → Verify\n`/setup-status` [channel] → Status-Embed\n`/setup-permission` → Command-Berechtigungen\n`/restart` → Bot neu starten\n`/wartung` → Wartung an/aus\n`/panel-create` → Custom Panel (10 Buttons) speichern+senden\n`/panel-add-button` → Button hinzufügen\n`/panel-send`/`/panel-delete`/`/panel-list` → Panels verwalten\n`/nachricht-wiederholen` → Nachricht regelmäßig senden\n`/wiederholung-stoppen`/`/wiederholung-liste` → Wiederholungen verwalten\n`/embed` → Embed mit HEX-Farbe und Bild-Upload\n`/kick`, `/ban`, `/unban`, `/timeout` → Moderation\n`/giverole`, `/removerole` → Rollen verwalten\n`/selfrollen-panel` → Self-Role-Panel mit Embed und Rollen-Buttons erstellen verwalten\n`/selfrollen-panel` → Self-Role-Menü erstellen\n`/einheit-erstellen` → Kompanien, Züge und Gruppen\n`/einheit-liste`, `/einheit-info` → Einheiten anzeigen\n`/einheit-mitglied`, `/einheit-entfernen` → Personalverwaltung'));
     container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true));
     container.addTextDisplayComponents(new TextDisplayBuilder().setContent('**Welcome-Platzhalter:**\n`{user}` → Ping\n`{username}` → Name\n`{displayname}` → Server-Nickname\n`{server}` → Servername\n`{id}` → User-ID\n`{count}` → Mitgliederzahl\n\nDer Avatar des Users erscheint automatisch oben rechts.'));
     return interaction.reply({ components: [container], flags: EPHEMERAL_V2 });

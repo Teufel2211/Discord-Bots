@@ -51,7 +51,7 @@ function page(title, body, user) {
   const groups = [
     ['START', [['dashboard','⌂','Übersicht']]],
     ['PERSONAL', [['personalakten','▤','Personalakten'],['einheiten','⌘','Einheiten']]],
-    ['SICHERHEIT & KOMMUNIKATION', [['raid','◈','Raid Protection'],['dm','✉','DM-System'],['tickets','▣','Tickets']]],
+    ['SICHERHEIT & KOMMUNIKATION', [['raid','◈','Raid Protection'],['dm','✉','DM-System']],
     ['INHALTE', [['embeds','▧','Embed-Editor'],['giveaways','✦','Giveaways']]],
     ['SYSTEM', [['einstellungen','⚙','Einstellungen'],['protokoll','≡','Aktivitätsprotokoll']]]
   ];
@@ -144,17 +144,16 @@ app.post('/logout', requireSession, async (req, res) => {
 
 app.get('/dashboard', requireSession, async (req, res) => {
   const g = req.dashboardSession.guild_id;
-  const [guilds, units, personnel, tickets, giveaways, status] = await Promise.all([
+  const [guilds, units, personnel, giveaways, status] = await Promise.all([
     db('bww_guilds?select=name,member_count&guild_id=eq.' + g + '&limit=1', { headers: { Prefer: 'return=representation' } }).catch(() => []),
     db('bww_units?select=id&guild_id=eq.' + g, { headers: { Prefer: 'return=representation' } }).catch(() => []),
     db('bww_personalakten?select=user_id&guild_id=eq.' + g, { headers: { Prefer: 'return=representation' } }).catch(() => []),
-    db('bww_tickets?select=id&guild_id=eq.' + g + '&status=eq.open', { headers: { Prefer: 'return=representation' } }).catch(() => []),
     db('bww_giveaways?select=id&guild_id=eq.' + g + '&status=eq.active', { headers: { Prefer: 'return=representation' } }).catch(() => []),
     db('bww_bot_status?select=status,updated_at,ping_ms,uptime_seconds&id=eq.primary&limit=1', { headers: { Prefer: 'return=representation' } }).catch(() => [])
   ]);
   const guild = guilds?.[0] || {};
   const bot = status?.[0] || {};
-  const body = '<div class="stats"><div class="stat"><small>Mitglieder</small><strong>' + (guild.member_count ?? '—') + '</strong></div><div class="stat"><small>Personalakten</small><strong>' + personnel.length + '</strong></div><div class="stat"><small>Einheiten</small><strong>' + units.length + '</strong></div><div class="stat"><small>Offene Tickets</small><strong>' + tickets.length + '</strong></div><div class="stat"><small>Aktive Giveaways</small><strong>' + giveaways.length + '</strong></div></div>' + card('Serverstatus', '<div class="status-row"><span class="status ' + (bot.status === 'online' ? '' : 'off') + '"><i></i> ' + escapeHtml(bot.status || 'Unbekannt') + '</span><span class="muted">Letztes Update: ' + escapeHtml(bot.updated_at ? new Date(bot.updated_at).toLocaleString('de-DE') : 'Keine Daten') + '</span><span class="muted">Ping: ' + escapeHtml(bot.ping_ms ?? '—') + ' ms</span></div>') + card('Schnellaktionen', '<div class="actions">' + form('/actions/send', field('Kanal-ID','channel_id','','text',true) + textarea('Nachricht','content','',true) + button('Nachricht senden'), 'form-grid') + form('/actions/raid-lockdown','<p>Alle Textkanäle für @everyone sperren.</p>' + button('Lockdown aktivieren','danger')) + form('/actions/raid-restore','<p>Gespeicherte Kanalrechte wiederherstellen.</p>' + button('Lockdown aufheben')) + '</div>');
+  const body = '<div class="stats"><div class="stat"><small>Mitglieder</small><strong>' + (guild.member_count ?? '—') + '</strong></div><div class="stat"><small>Personalakten</small><strong>' + personnel.length + '</strong></div><div class="stat"><small>Einheiten</small><strong>' + units.length + '</strong></div><div class="stat"><small>Aktive Giveaways</small><strong>' + giveaways.length + '</strong></div></div>' + card('Serverstatus', '<div class="status-row"><span class="status ' + (bot.status === 'online' ? '' : 'off') + '"><i></i> ' + escapeHtml(bot.status || 'Unbekannt') + '</span><span class="muted">Letztes Update: ' + escapeHtml(bot.updated_at ? new Date(bot.updated_at).toLocaleString('de-DE') : 'Keine Daten') + '</span><span class="muted">Ping: ' + escapeHtml(bot.ping_ms ?? '—') + ' ms</span></div>') + card('Schnellaktionen', '<div class="actions">' + form('/actions/send', field('Kanal-ID','channel_id','','text',true) + textarea('Nachricht','content','',true) + button('Nachricht senden'), 'form-grid') + form('/actions/raid-lockdown','<p>Alle Textkanäle für @everyone sperren.</p>' + button('Lockdown aktivieren','danger')) + form('/actions/raid-restore','<p>Gespeicherte Kanalrechte wiederherstellen.</p>' + button('Lockdown aufheben')) + '</div>');
   res.send(page('Übersicht', body, req.dashboardSession));
 });
 
@@ -281,11 +280,6 @@ app.post('/dm/send',requireSession,async(req,res)=>{
   if(!/^\d{15,22}$/.test(userId)||!content)return res.status(400).send('Nutzer-ID oder Nachricht ungültig.');
   await queueAction(req,'dm_thread',{user_id:userId,content});
   res.redirect('/dm');
-});
-app.get('/tickets',requireSession,async(req,res)=>{
-  const rows=await db('bww_tickets?select=id,owner_id,reason,status,priority,claimed_by,created_at,updated_at&guild_id=eq.'+req.dashboardSession.guild_id+'&order=created_at.desc&limit=100',{headers:{Prefer:'return=representation'}});
-  const body=card('Ticketübersicht',table(['Ticket-ID','Ersteller','Grund','Status','Priorität','Bearbeiter','Erstellt'],rows.map(t=>[escapeHtml(t.id),escapeHtml(t.owner_id),escapeHtml(t.reason),escapeHtml(t.status),escapeHtml(t.priority),escapeHtml(t.claimed_by||'—'),escapeHtml(new Date(t.created_at).toLocaleString('de-DE'))])));
-  res.send(page('Tickets',body,req.dashboardSession));
 });
 app.get('/giveaways',requireSession,async(req,res)=>{
   const rows=await db('bww_giveaways?select=id,prize,status,winner_count,end_at,current_winners,created_at&guild_id=eq.'+req.dashboardSession.guild_id+'&order=created_at.desc&limit=100',{headers:{Prefer:'return=representation'}});
