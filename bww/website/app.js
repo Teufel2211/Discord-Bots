@@ -51,7 +51,7 @@ function page(title, body, user) {
   const groups = [
     ['START', [['dashboard','⌂','Übersicht']]],
     ['PERSONAL', [['personalakten','▤','Personalakten'],['einheiten','⌘','Einheiten']]],
-    ['SICHERHEIT & KOMMUNIKATION', [['raid','◈','Raid Protection'],['dm','✉','DM-System']],
+    ['SICHERHEIT & KOMMUNIKATION', [['raid','◈','Raid Protection'],['dm','✉','DM-System']]],
     ['INHALTE', [['embeds','▧','Embed-Editor'],['giveaways','✦','Giveaways']]],
     ['SYSTEM', [['einstellungen','⚙','Einstellungen'],['protokoll','≡','Aktivitätsprotokoll']]]
   ];
