@@ -378,6 +378,40 @@ module.exports = async (interaction, client) => {
     try { await member.roles.add(role); } catch { return interaction.reply({ content: '❌ Rolle konnte nicht vergeben werden. Prüfe Hierarchie.', ...EPHEMERAL }); }
     return interaction.reply({ content: `✅ ${member.user.tag} hat die Rolle ${role} erhalten.`, ...EPHEMERAL });
   }
+  if (command === 'giverole-alle') {
+    if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageRoles) && !interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
+      return interaction.reply({ content: '❌ Du benötigst die Berechtigung „Rollen verwalten“, um diese Aktion auszuführen.', ...EPHEMERAL });
+    }
+    const role = interaction.options.getRole('rolle', true);
+    if (role.id === interaction.guild.id || role.managed) {
+      return interaction.reply({ content: '❌ Diese Rolle kann nicht vergeben werden.', ...EPHEMERAL });
+    }
+    const botMember = await interaction.guild.members.fetchMe();
+    if (!botMember.permissions.has(PermissionFlagsBits.ManageRoles) || botMember.roles.highest.comparePositionTo(role) <= 0) {
+      return interaction.reply({ content: '❌ Der Bot benötigt „Rollen verwalten“ und eine höhere Rollenposition als die ausgewählte Rolle.', ...EPHEMERAL });
+    }
+    await interaction.deferReply({ ...EPHEMERAL });
+    try {
+      const members = await interaction.guild.members.fetch();
+      const alreadyHadRole = [...members.values()].filter(member => !member.user.bot && member.roles.cache.has(role.id)).length;
+      const targets = [...members.values()].filter(member => !member.user.bot && !member.roles.cache.has(role.id));
+      let assigned = 0;
+      let failed = 0;
+      for (let i = 0; i < targets.length; i += 5) {
+        const batch = targets.slice(i, i + 5);
+        const results = await Promise.all(batch.map(member => member.roles.add(role, `Massen-Rollenvergabe durch ${interaction.user.tag}`).then(() => true).catch(error => {
+          console.error(`[BWW] Rolle ${role.id} konnte Mitglied ${member.id} nicht zugewiesen werden:`, error.message);
+          return false;
+        })));
+        assigned += results.filter(Boolean).length;
+        failed += results.filter(result => !result).length;
+      }
+      return interaction.editReply({ content: `✅ Massen-Rollenvergabe abgeschlossen für ${role}.\n• Erfolgreich zugewiesen: **${assigned}**\n• Bereits vorhanden: **${alreadyHadRole}**\n• Fehlgeschlagen: **${failed}**` });
+    } catch (error) {
+      console.error('[BWW] Massen-Rollenvergabe fehlgeschlagen:', error);
+      return interaction.editReply({ content: '❌ Die Mitglieder konnten nicht vollständig geladen oder die Rolle konnte nicht vergeben werden. Details stehen im Bot-Log.' });
+    }
+  }
   if (command === 'removerole') {
     const member = interaction.options.getMember('user'); const role = interaction.options.getRole('rolle');
     if (!member) return interaction.reply({ content: '❌ Mitglied nicht gefunden.', ...EPHEMERAL });

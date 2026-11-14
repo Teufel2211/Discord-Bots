@@ -105,6 +105,9 @@ const commands = [
     { name: 'user', description: 'Mitglied', type: 6, required: true },
     { name: 'rolle', description: 'Rolle', type: 8, required: true }
   ]},
+  { name: 'giverole-alle', description: 'Gibt eine Rolle allen aktuellen Servermitgliedern.', options: [
+    { name: 'rolle', description: 'Rolle, die allen Mitgliedern gegeben wird', type: 8, required: true }
+  ]},
   { name: 'removerole', description: 'Entfernt einem Mitglied eine Rolle.', options: [
     { name: 'user', description: 'Mitglied', type: 6, required: true },
     { name: 'rolle', description: 'Rolle', type: 8, required: true }
