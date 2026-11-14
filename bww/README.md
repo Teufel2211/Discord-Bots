@@ -1,8 +1,8 @@
 # BWW – Bundeswehr Waldstädt Discord-Bot
 
-Der BWW-Bot ist der Discord-Bot für **Bundeswehr Waldstädt**. Er bündelt Nachrichten, Moderation, Verifizierung, Tickets, Giveaways, Umfragen, benutzerdefinierte Panels und Serverstatus in einem Bot.
+Der BWW-Bot ist der Discord-Bot für **Bundeswehr Waldstädt**. Er bündelt Nachrichten, Moderation, Verifizierung, Giveaways, Umfragen, benutzerdefinierte Panels und Serverstatus in einem Bot.
 
-> **Wichtig:** Nachrichten, Panels, Tickets, Statusmeldungen und weitere gestaltete Bot-Ausgaben verwenden Discord **Components V2**. Der Bot setzt dafür keine klassischen Discord-Embeds ein.
+> **Wichtig:** Nachrichten, Panels, Statusmeldungen und weitere gestaltete Bot-Ausgaben verwenden Discord **Components V2**. Der Bot setzt dafür keine klassischen Discord-Embeds ein.
 
 ## Inhaltsverzeichnis
 
@@ -87,7 +87,7 @@ Der Code erwartet folgende Spalten:
 
 Die Tabelle muss für den vom Bot verwendeten serverseitigen Supabase-Schlüssel les- und beschreibbar sein. Der Bot greift über die Supabase-REST-Schnittstelle darauf zu.
 
-In `settings` werden unter anderem Welcome-, Verify-, Ticket- und Status-Einstellungen, Command-Berechtigungen sowie wiederkehrende Nachrichten gespeichert. Das Einheiten-System verwendet zusätzlich `bww_units`, `bww_unit_members` und `bww_unit_audit_logs`.
+In `settings` werden unter anderem Welcome-, Verify- und Status-Einstellungen, Command-Berechtigungen sowie wiederkehrende Nachrichten gespeichert. Das Einheiten-System verwendet zusätzlich `bww_units`, `bww_unit_members` und `bww_unit_audit_logs`.
 
 ## Ersteinrichtung auf Discord
 
@@ -102,7 +102,6 @@ Die wichtigsten Setup-Schritte:
 
 - `/setup-welcome` – Begrüßungskanal und Begrüßungstext konfigurieren.
 - `/setup-verify` – Verifizierungskanal und Verifizierungsrolle konfigurieren.
-- `/setup-ticket` – Ticket-Kategorie und Support-Rolle konfigurieren.
 - `/setup-status` – Statusnachricht in einem Textkanal erstellen.
 - `/setup-permission` – Rollen für unterstützte Commands freischalten.
 
@@ -142,7 +141,7 @@ Bei `/nachricht-wiederholen` sind als Einheiten Minuten, Stunden und Tage verfü
 
 Bei `/panel-create` müssen für jeden Button sowohl ein Label als auch ein Antworttext angegeben werden. Weitere Buttons können mit `/panel-add-button` hinzugefügt werden. Die gespeicherten Panels liegen lokal in `bww/config/panels.json`.
 
-### Verifizierung, Tickets und Community
+### Verifizierung und Community
 
 | Command | Beschreibung |
 |---|---|
@@ -150,8 +149,6 @@ Bei `/panel-create` müssen für jeden Button sowohl ein Label als auch ein Antw
 | `/setup-verify` | Konfiguriert den Verifizierungskanal, die Rolle und den Nachrichtentext. |
 | `/verify` | Sendet das konfigurierte Verifizierungs-Panel. |
 | `/selfrollen-panel` | Erstellt ein gestaltetes Self-Role-Embed mit bis zu fünf individuell konfigurierbaren Rollen-Buttons. |
-| `/setup-ticket` | Konfiguriert die Ticket-Kategorie und die Support-Rolle. |
-| `/ticket` | Sendet das Ticket-Panel. |
 | `/umfrage` | Erstellt eine Umfrage mit zwei bis fünf Antwortoptionen und Live-Zähler. |
 
 **Self-Role-System:**
@@ -166,14 +163,6 @@ Bei `/panel-create` müssen für jeden Button sowohl ein Label als auch ein Antw
 **Beispiel:**
 `/selfrollen-panel kanal:#rollen beschreibung:Wähle deine Benachrichtigungen titel:Benachrichtigungen embed_farbe:#5865F2 rolle1:@News name1:News farbe1:primary emoji1:📢 rolle2:@Events name2:Events farbe2:success emoji2:🎉`
 
-Ticket-Gründe im aktuellen System:
-- Allgemeine Frage
-- Problem / Bug
-- Bewerbung
-- Spieler melden
-- Sonstiges
-
-Ein Ticket wird als eigener, zugriffsbeschränkter Textkanal erstellt. Der Ersteller und die konfigurierte Support-Rolle erhalten Zugriff. Der Ticket-Schließen-Button löscht den Ticket-Kanal nach Bestätigung.
 
 ### Einheiten- und Kompaniesystem
 
@@ -274,7 +263,7 @@ Serverseitig benötigt das Vercel-Projekt `SUPABASE_URL` und `SUPABASE_SECRET_KE
 - Raid Protection, Join-Schwellen und Lockdown-Protokoll
 - Components-V2-Embeds senden und gespeicherte Nachrichten bearbeiten
 - DM-Versand mit Antwortweiterleitung an den anfragenden Mitarbeiter
-- Tickets, Giveaways, Einstellungen und Aktionsprotokoll
+- Giveaways, Einstellungen und Aktionsprotokoll
 
 Der Bot muss online sein, damit Nachrichten, Embeds, DM-Dialoge und Lockdown-Aktionen aus dem Dashboard ausgeführt werden.
 
@@ -308,7 +297,6 @@ Es gibt zwei Ebenen:
 Wichtige Sonderfälle:
 - `/nachricht-wiederholen` ist zusätzlich ausdrücklich auf Administratoren beschränkt.
 - Giveaway-Verwaltungsaktionen (vorzeitiges Beenden und erneute Ziehung) benötigen Administratorrechte oder eine für `giveaway` freigeschaltete Rolle.
-- Das Schließen eines Tickets ist für Administratoren, die konfigurierte Support-Rolle und den Ticket-Ersteller möglich.
 - Setup-Commands können nur Administratoren verwenden.
 
 Die Bot-Rolle muss in der Discord-Rollenhierarchie oberhalb der Rollen liegen, die der Bot vergeben oder entfernen soll.
@@ -387,11 +375,6 @@ Diese Dateien enthalten Laufzeitdaten. Bei Backups müssen sie zusammen mit der 
 - Prüfe, ob der Bot die Berechtigung **Rollen verwalten** besitzt.
 - Verschiebe die Bot-Rolle in der Rollenliste über die Zielrolle.
 
-### Tickets können nicht erstellt werden
-
-- Prüfe die Konfiguration mit `/setup-ticket`.
-- Prüfe, ob die ausgewählte Kategorie noch existiert.
-- Prüfe, ob der Bot Kanäle verwalten darf.
 
 ### Components V2-Nachrichten schlagen fehl
 
