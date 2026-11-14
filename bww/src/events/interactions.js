@@ -393,6 +393,7 @@ module.exports = async (interaction, client) => {
     await interaction.deferReply({ ...EPHEMERAL });
     try {
       const members = await interaction.guild.members.fetch();
+      const alreadyHadRole = [...members.values()].filter(member => !member.user.bot && member.roles.cache.has(role.id)).length;
       const targets = [...members.values()].filter(member => !member.user.bot && !member.roles.cache.has(role.id));
       let assigned = 0;
       let failed = 0;
@@ -405,7 +406,6 @@ module.exports = async (interaction, client) => {
         assigned += results.filter(Boolean).length;
         failed += results.filter(result => !result).length;
       }
-      const alreadyHadRole = [...members.values()].filter(member => !member.user.bot && member.roles.cache.has(role.id)).length;
       return interaction.editReply({ content: `✅ Massen-Rollenvergabe abgeschlossen für ${role}.\n• Erfolgreich zugewiesen: **${assigned}**\n• Bereits vorhanden: **${alreadyHadRole}**\n• Fehlgeschlagen: **${failed}**` });
     } catch (error) {
       console.error('[BWW] Massen-Rollenvergabe fehlgeschlagen:', error);
