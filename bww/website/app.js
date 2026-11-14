@@ -281,11 +281,6 @@ app.post('/dm/send',requireSession,async(req,res)=>{
   await queueAction(req,'dm_thread',{user_id:userId,content});
   res.redirect('/dm');
 });
-app.get('/tickets',requireSession,async(req,res)=>{
-  const rows=await db('bww_tickets?select=id,owner_id,reason,status,priority,claimed_by,created_at,updated_at&guild_id=eq.'+req.dashboardSession.guild_id+'&order=created_at.desc&limit=100',{headers:{Prefer:'return=representation'}});
-  const body=card('Ticketübersicht',table(['Ticket-ID','Ersteller','Grund','Status','Priorität','Bearbeiter','Erstellt'],rows.map(t=>[escapeHtml(t.id),escapeHtml(t.owner_id),escapeHtml(t.reason),escapeHtml(t.status),escapeHtml(t.priority),escapeHtml(t.claimed_by||'—'),escapeHtml(new Date(t.created_at).toLocaleString('de-DE'))])));
-  res.send(page('Tickets',body,req.dashboardSession));
-});
 app.get('/giveaways',requireSession,async(req,res)=>{
   const rows=await db('bww_giveaways?select=id,prize,status,winner_count,end_at,current_winners,created_at&guild_id=eq.'+req.dashboardSession.guild_id+'&order=created_at.desc&limit=100',{headers:{Prefer:'return=representation'}});
   const body=card('Giveaway-Verwaltung',table(['Preis','Status','Gewinner','Ende','Aktuelle Gewinner'],rows.map(g=>[escapeHtml(g.prize),escapeHtml(g.status),escapeHtml(g.winner_count),escapeHtml(g.end_at?new Date(g.end_at).toLocaleString('de-DE'):'—'),escapeHtml(JSON.stringify(g.current_winners||[]))])));
