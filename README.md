@@ -20,7 +20,8 @@ Es gibt zwei unterstützte Betriebsarten:
 |---|---|---|
 | \`BOT_ABBR=BWW\` | Bundeswehr Waldstädt | \`bww/src/index.js\` |
 | \`BOT_ABBR=VC\` | Voice-Chat-Holder | \`current/index.js\` |
-| \`BOT_ABBR=TTV\` | Twitch-Chatbot | \`twitch-chatbot/src/index.js\` |\n| \`BOT_ABBR=SC\` | ServerCore | \`servercore/start.js\` |
+| \`BOT_ABBR=TTV\` | Twitch-Chatbot | \`twitch-chatbot/src/index.js\` |
+| \`BOT_ABBR=SC\` | ServerCore | \`servercore/start.js\` |
 
 Auf jeder Instanz lautet der Startbefehl \`npm start\`. Setze zusätzlich \`GITHUB_BRANCH=master\` und bei Bedarf \`SYNC_REQUIRED=true\`. Auch der Einzelbot-Sync prüft alle 60 Sekunden und startet nur den ausgewählten Bot neu, wenn dessen Dateien geändert wurden.
 
@@ -42,7 +43,8 @@ Auf jeder Instanz lautet der Startbefehl \`npm start\`. Setze zusätzlich \`GITH
 |---|---|---|
 | **BWW** | Welcome, Verify, Tickets, Giveaways | \`bww/\` |
 | **VC** | Voice-Chat-Holder | \`current/\` |
-| **TTV** | Twitch-Chatbot | \`twitch-chatbot/\` |\n| **SC** | ServerCore (Tickets, Anti-Raid, Bewerbungen, Logs, Moderation, Rollen, Giveaways usw.) | \`servercore/\` |
+| **TTV** | Twitch-Chatbot | \`twitch-chatbot/\` |
+| **SC** | ServerCore (Tickets, Anti-Raid, Bewerbungen, Logs, Moderation, Rollen, Giveaways usw.) | \`servercore/\` |
 
 
 ## ServerCore-Bot
