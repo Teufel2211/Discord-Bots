@@ -21,6 +21,22 @@ export type ServerCoreDatabase = {
   connect(): Promise<DatabaseConnection>;
 };
 
+function restorePostgresDates(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(restorePostgresDates);
+  if (!value || typeof value !== "object") return value;
+
+  const restored: Record<string, unknown> = {};
+  for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof item === "string" && /_(at|date)$/i.test(key)) {
+      const parsed = new Date(item);
+      restored[key] = Number.isNaN(parsed.getTime()) ? item : parsed;
+    } else {
+      restored[key] = restorePostgresDates(item);
+    }
+  }
+  return restored;
+}
+
 function normalizeResult<Row>(value: unknown): QueryResult<Row> {
   if (!value || typeof value !== "object") {
     return { rows: [], rowCount: 0 };
@@ -28,7 +44,9 @@ function normalizeResult<Row>(value: unknown): QueryResult<Row> {
 
   const result = value as { rows?: unknown; rowCount?: unknown };
   return {
-    rows: Array.isArray(result.rows) ? (result.rows as Row[]) : [],
+    rows: Array.isArray(result.rows)
+      ? (result.rows.map(restorePostgresDates) as Row[])
+      : [],
     rowCount: Number.isFinite(Number(result.rowCount)) ? Number(result.rowCount) : 0
   };
 }
