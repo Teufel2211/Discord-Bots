@@ -82,6 +82,14 @@ async function loadSession(req) {
   const rows = await db('bww_dashboard_sessions?select=id,guild_id,user_id,expires_at&token_hash=eq.' + hash(token) + '&revoked_at=is.null&expires_at=gt.' + encodeURIComponent(new Date().toISOString()) + '&limit=1', { headers: { Prefer: 'return=representation' } });
   return rows?.[0] || null;
 }
+
+// Twitch-Giveaway-API: eigene Bearer-Authentifizierung in den Handlern.
+// Diese Routen müssen vor der BWW-Dashboard-Session-Prüfung registriert sein.
+const giveawayApi = require('./api/giveaway');
+const watchtimeApi = require('./api/watchtime');
+app.all('/api/giveaway', (req, res) => giveawayApi(req, res));
+app.all('/api/watchtime', (req, res) => watchtimeApi(req, res));
+
 app.use(async (req, res, next) => {
   res.setHeader('X-Content-Type-Options','nosniff');
   res.setHeader('X-Frame-Options','DENY');
