@@ -1,11 +1,37 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
-    { "source": "/", "destination": "/giveaway.html" },
-    { "source": "/giveaway", "destination": "/giveaway.html" },
-    { "source": "/giveaway/admin", "destination": "/giveaway-admin.html" },
-    { "source": "/giveaway/admin/", "destination": "/giveaway-admin.html" },
-    { "source": "/giveaway/admin-dauer", "destination": "/giveaway-admin.html" },
-    { "source": "/giveaway/admin-dauer/", "destination": "/giveaway-admin.html" }
+    {
+      "source": "/api/giveaway",
+      "destination": "https://bww-nu.vercel.app/api/giveaway"
+    },
+    {
+      "source": "/api/watchtime",
+      "destination": "https://bww-nu.vercel.app/api/watchtime"
+    },
+    {
+      "source": "/",
+      "destination": "/giveaway.html"
+    },
+    {
+      "source": "/giveaway",
+      "destination": "/giveaway.html"
+    },
+    {
+      "source": "/giveaway/admin",
+      "destination": "/giveaway-admin.html"
+    },
+    {
+      "source": "/giveaway/admin/",
+      "destination": "/giveaway-admin.html"
+    },
+    {
+      "source": "/giveaway/admin-dauer",
+      "destination": "/giveaway-admin.html"
+    },
+    {
+      "source": "/giveaway/admin-dauer/",
+      "destination": "/giveaway-admin.html"
+    }
   ]
 }
