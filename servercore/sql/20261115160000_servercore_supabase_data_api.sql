@@ -355,7 +355,7 @@ BEGIN
      OR lower(p_sql) ~ '(pg_catalog|information_schema|auth|storage|vault)' THEN
     RAISE EXCEPTION 'The SQL statement contains a forbidden construct.';
   END IF;
-  IF upper(p_sql) ~ '(^|[[:space:]])(CREATE|ALTER|DROP|TRUNCATE|GRANT|REVOKE|COPY|CALL|DO|SET|RESET|VACUUM|ANALYZE|EXPLAIN)([[:space:]]|$)' THEN
+  IF upper(p_sql) ~ '(^|[[:space:]])(CREATE|ALTER|DROP|TRUNCATE|GRANT|REVOKE|COPY|CALL|DO|RESET|VACUUM|ANALYZE|EXPLAIN)([[:space:]]|$)' THEN
     RAISE EXCEPTION 'DDL and administrative SQL are not allowed through this endpoint.';
   END IF;
 
