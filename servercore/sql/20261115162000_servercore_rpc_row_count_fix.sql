@@ -36,7 +36,7 @@ BEGIN
      OR position('vault.' in lower(p_sql)) > 0 THEN
     RAISE EXCEPTION 'The SQL statement contains a forbidden construct.';
   END IF;
-  IF upper(p_sql) ~ '(^|[[:space:]])(CREATE|ALTER|DROP|TRUNCATE|GRANT|REVOKE|COPY|CALL|DO|RESET|VACUUM|ANALYZE|EXPLAIN)([[:space:]]|$)' THEN
+  IF upper(p_sql) ~ '(^|[[:space:]])(CREATE|ALTER|DROP|TRUNCATE|GRANT|REVOKE|COPY|CALL|RESET|VACUUM|ANALYZE|EXPLAIN)([[:space:]]|$)' THEN
     RAISE EXCEPTION 'DDL and administrative SQL are not allowed through this endpoint.';
   END IF;
 
