@@ -55,11 +55,13 @@ ServerCore ist als vierter, eigenständiger Dienst integriert. Der Bot-Code lieg
 
 1. Kopiere `servercore/.env.example` nach `servercore/.env`.
 2. Trage `DISCORD_BOT_TOKEN` und `DISCORD_APPLICATION_ID` ein.
-3. Trage in `DATABASE_URL` die direkte PostgreSQL-Verbindungszeichenfolge deines Supabase-Projekts ein (kein Session Pooler).
+3. Trage `SUPABASE_URL` (Projekt-URL) und `SUPABASE_SECRET_KEY` (serverseitiger Schlüssel `sb_secret_...`) ein.
 4. Aktiviere im Discord Developer Portal die benötigten Privileged Gateway Intents: **Server Members** und **Message Content**.
 5. Stelle sicher, dass der Bot mindestens die benötigten Server- und Kanalrechte besitzt.
 
-Die echte `.env` bleibt lokal und wird nicht synchronisiert oder committet. Der Bot nutzt dieselbe Supabase-PostgreSQL-Datenbank wie das ServerCore-Dashboard; Tabellen werden mit dem Präfix `SC_` angelegt.
+ServerCore verwendet ausschließlich die Supabase Data API über `@supabase/supabase-js` und serverseitige RPC-Funktionen. Es wird **keine PostgreSQL-Verbindungszeichenfolge**, kein direkter TCP-Zugriff und kein Session Pooler benötigt. Die Secret Key Variable darf niemals in Frontend-Code oder öffentliche `NEXT_PUBLIC_*`-Variablen gelangen. Die echte `.env` bleibt lokal und wird nicht synchronisiert oder committet.
+
+Die Tabellen liegen in derselben Supabase-Projektdatenbank wie das ServerCore-Dashboard und tragen das Präfix `SC_`. Schema- und RPC-Änderungen werden über versionierte SQL-Dateien in `servercore/sql/` ausgerollt; der Bot führt beim Start nur einen Data-API-Verbindungstest aus und benötigt keine DDL-Datenbankverbindung.
 
 ### Starten
 
