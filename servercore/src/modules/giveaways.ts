@@ -3,7 +3,7 @@ import {
   ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder,
   Events, PermissionFlagsBits, SlashCommandBuilder, type Client, type TextChannel
 } from "discord.js";
-import { randomInt, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import type { createDatabase } from "../database.js";
 
 type Database = ReturnType<typeof createDatabase>;
@@ -63,17 +63,6 @@ export const giveawayCommand = new SlashCommandBuilder()
     .addStringOption((o) => o.setName("id").setDescription("Gewinnspiel-ID").setRequired(true))
     .addUserOption((o) => o.setName("gewinner").setDescription("Zu ersetzender Gewinner (optional, sonst der zuletzt gezogene)")))
   .addSubcommand((sub) => sub.setName("liste").setDescription("Zeigt laufende Gewinnspiele dieses Servers."));
-
-function pickWeightedUser(participants: Array<{ user_id: string; bonus_entries: number }>): string | null {
-  const totalWeight = participants.reduce((total, participant) => total + Math.max(1, 1 + participant.bonus_entries), 0);
-  if (!Number.isSafeInteger(totalWeight) || totalWeight <= 0) return null;
-  let ticket = randomInt(totalWeight);
-  for (const participant of participants) {
-    ticket -= Math.max(1, 1 + participant.bonus_entries);
-    if (ticket < 0) return participant.user_id;
-  }
-  return null;
-}
 
 async function drawGiveaway(client: Client, database: Database, row: GiveawayRow, actorId: string | null): Promise<string[]> {
   const result = await database.rpc<{
