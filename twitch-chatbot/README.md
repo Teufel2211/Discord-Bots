@@ -32,6 +32,8 @@ Ein einfacher Node.js-Bot mit Chat-Befehlen. Er verbindet sich mit Twitch über 
    TIMEZONE=Europe/Berlin
    GIVEAWAY_API_URL=https://DEIN-PROJEKT.vercel.app/api/giveaway
    GIVEAWAY_BOT_SECRET=ein-langes-geheimes-bot-passwort
+   GIVEAWAY_SUPABASE_URL=https://hfreshlzwukfaeyveddv.supabase.co
+   GIVEAWAY_SUPABASE_SECRET_KEY=dein-serverseitiger-supabase-secret-key
    ```
    - `BOT_USERNAME` ist der Twitch-Benutzername, zu dem der Token gehört.
    - `TWITCH_CHANNEL` ist der Kanal, in den der Bot schreiben soll.
@@ -64,7 +66,18 @@ GIVEAWAY_BOT_SECRET=ein-langes-geheimes-bot-passwort
 ```
 
 `GIVEAWAY_BOT_SECRET` muss mit der gleichnamigen KATABUMP-Variable übereinstimmen. `GIVEAWAY_ADMIN_SECRET` wird nur im Dashboard als Passwort verwendet und gehört nicht in KATABUMP.
-Den `GIVEAWAY_SUPABASE_SECRET_KEY` niemals in `public/`, im Browser oder in KATABUMP eintragen.
+Den `GIVEAWAY_SUPABASE_SECRET_KEY` niemals in `public/` oder im Browser eintragen. Für die direkte Realtime-Verbindung muss derselbe serverseitige Schlüssel zusätzlich in der privaten `twitch-chatbot/.env` liegen.
+
+## Supabase Realtime für Giveaways
+
+Der Bot hört neue Giveaway-Befehle direkt über Supabase Realtime ab, statt alle zwei Sekunden die API abzufragen. Trage dafür in der privaten `twitch-chatbot/.env` dieselbe Projekt-URL und denselben serverseitigen Secret Key ein, die auch das Vercel-Giveaway-Backend verwendet:
+
+- `GIVEAWAY_SUPABASE_URL`
+- `GIVEAWAY_SUPABASE_SECRET_KEY`
+
+Der Schlüssel bleibt ausschließlich in der privaten Bot-`.env` und darf niemals in den Browser oder ins Repository gelangen. Wenn Realtime nicht erreichbar oder nicht konfiguriert ist, verwendet der Bot automatisch einen 60-Sekunden-Fallback über die bestehende authentifizierte API.
+
+Die Tabelle `public.tw_giveaway_commands` muss in der Publication `supabase_realtime` aktiviert sein. Das Setup-SQL erledigt dies idempotent.
 
 ## Befehle im Twitch-Chat
 - `!help` oder `!hilfe` — zeigt die Befehle
