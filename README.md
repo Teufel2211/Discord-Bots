@@ -10,17 +10,17 @@ Es gibt zwei unterstützte Betriebsarten:
 
 - **Startbefehl:** \`node start-all.js\`
 - **GitHub-Branch:** optional \`GITHUB_BRANCH=master\` (Standard: \`master\`)
-- VC, BWW und TTV werden gestartet und alle 60 Sekunden wird GitHub geprüft.
+- VC, BWW, TTV und ServerCore werden gestartet und alle 60 Sekunden wird GitHub geprüft.
 - Nur geänderte Dateien werden aktualisiert; neue Dateien werden hinzugefügt und entfernte Dateien lokal gelöscht.
-- Nur der Bot, dessen Verzeichnis betroffen ist, wird neu gestartet. Bei Änderungen an Root-Abhängigkeiten werden Abhängigkeiten installiert und alle drei Bots neu gestartet.
+- Nur der Bot, dessen Verzeichnis betroffen ist, wird neu gestartet. Bei Änderungen an Root-Abhängigkeiten werden Abhängigkeiten installiert und alle vier Bots neu gestartet.
 
-### Drei getrennte KataBump-Instanzen
+### Vier getrennte KataBump-Instanzen
 
 | KataBump-Variable | Bot | Startdatei |
 |---|---|---|
 | \`BOT_ABBR=BWW\` | Bundeswehr Waldstädt | \`bww/src/index.js\` |
 | \`BOT_ABBR=VC\` | Voice-Chat-Holder | \`current/index.js\` |
-| \`BOT_ABBR=TTV\` | Twitch-Chatbot | \`twitch-chatbot/src/index.js\` |
+| \`BOT_ABBR=TTV\` | Twitch-Chatbot | \`twitch-chatbot/src/index.js\` |\n| \`BOT_ABBR=SC\` | ServerCore | \`servercore/start.js\` |
 
 Auf jeder Instanz lautet der Startbefehl \`npm start\`. Setze zusätzlich \`GITHUB_BRANCH=master\` und bei Bedarf \`SYNC_REQUIRED=true\`. Auch der Einzelbot-Sync prüft alle 60 Sekunden und startet nur den ausgewählten Bot neu, wenn dessen Dateien geändert wurden.
 
@@ -42,4 +42,27 @@ Auf jeder Instanz lautet der Startbefehl \`npm start\`. Setze zusätzlich \`GITH
 |---|---|---|
 | **BWW** | Welcome, Verify, Tickets, Giveaways | \`bww/\` |
 | **VC** | Voice-Chat-Holder | \`current/\` |
-| **TTV** | Twitch-Chatbot | \`twitch-chatbot/\` |
+| **TTV** | Twitch-Chatbot | \`twitch-chatbot/\` |\n| **SC** | ServerCore (Tickets, Anti-Raid, Bewerbungen, Logs, Moderation, Rollen, Giveaways usw.) | \`servercore/\` |
+
+
+## ServerCore-Bot
+
+ServerCore ist als vierter, eigenständiger Dienst integriert. Der Bot-Code liegt unter `servercore/src/`; die Module stammen aus dem ServerCore-Projekt und verwenden die vorhandenen `SC_*`-Tabellen.
+
+### Konfiguration
+
+1. Kopiere `servercore/.env.example` nach `servercore/.env`.
+2. Trage `DISCORD_BOT_TOKEN` und `DISCORD_APPLICATION_ID` ein.
+3. Trage in `DATABASE_URL` die direkte PostgreSQL-Verbindungszeichenfolge deines Supabase-Projekts ein (kein Session Pooler).
+4. Aktiviere im Discord Developer Portal die benötigten Privileged Gateway Intents: **Server Members** und **Message Content**.
+5. Stelle sicher, dass der Bot mindestens die benötigten Server- und Kanalrechte besitzt.
+
+Die echte `.env` bleibt lokal und wird nicht synchronisiert oder committet. Der Bot nutzt dieselbe Supabase-PostgreSQL-Datenbank wie das ServerCore-Dashboard; Tabellen werden mit dem Präfix `SC_` angelegt.
+
+### Starten
+
+- Alle vier Dienste: `npm run start:all`
+- Nur ServerCore: `BOT_ABBR=SC npm start` (Windows PowerShell: `$env:BOT_ABBR="SC"; npm start`)
+- Direkt ohne Supervisor: `npm run start:servercore`
+
+Der gemeinsame Supervisor startet ServerCore mit den anderen Bots und startet ihn bei Änderungen im Ordner `servercore/` gezielt neu.
