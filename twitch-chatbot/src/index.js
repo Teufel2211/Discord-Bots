@@ -213,7 +213,7 @@ restoreGiveawayState()
           console.log("[GIVEAWAY] Supabase-Realtime verbunden.");
           pollGiveawayCommands().catch((pollError) => console.error("[GIVEAWAY] Initialer Catch-up fehlgeschlagen:", pollError.message));
         } else if (status === "CONFIG_MISSING") {
-          console.warn("[GIVEAWAY] Realtime nicht konfiguriert; Fallback fragt alle 60 Sekunden ab. Setze GIVEAWAY_SUPABASE_URL und GIVEAWAY_SUPABASE_SECRET_KEY in twitch-chatbot/.env.");
+          console.warn("[GIVEAWAY] Realtime nicht konfiguriert; Fallback fragt alle 60 Sekunden ab. Setze GIVEAWAY_SUPABASE_PUBLISHABLE_KEY (optional; der öffentliche Schlüssel ist im Bot bereits hinterlegt) in twitch-chatbot/.env.");
         } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
           console.warn("[GIVEAWAY] Realtime-Status:", status, error?.message || "");
         }
