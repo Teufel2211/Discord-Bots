@@ -393,7 +393,7 @@ BEGIN
         RAISE EXCEPTION 'Query returned too many rows; add a LIMIT clause.';
       END IF;
     END LOOP;
-    GET DIAGNOSTICS v_row_count = ROW_COUNT;
+    v_row_count := jsonb_array_length(v_rows);
   ELSE
     EXECUTE v_sql;
     GET DIAGNOSTICS v_row_count = ROW_COUNT;
