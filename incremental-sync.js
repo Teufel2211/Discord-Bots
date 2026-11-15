@@ -106,7 +106,7 @@ function affectedBots(changedPaths) {
     else if (normalized.startsWith('twitch-chatbot/')) result.add('TTV');
     else if (normalized.startsWith('servercore/')) result.add('SC');
     else if (normalized === 'package.json' || normalized === 'package-lock.json') {
-      result.add('BWW'); result.add('VC'); result.add('TTV');
+      result.add('BWW'); result.add('VC'); result.add('TTV'); result.add('SC');
     }
   }
   return [...result];
