@@ -14,7 +14,7 @@ const interactions = require('./events/interactions');
 const { startGiveawayLoop } = require('./utils/giveaway');
 const { startRecurringMessageLoop } = require('./utils/recurring');
 const { updateStatusMessage, ensureStatusMessage, formatUptime } = require('./utils/status');
-const { getGuildSettings, syncBotStatus, syncGuilds, markOffline } = require('./utils/database');
+const { getGuildSettings, getRealtimeClient, syncBotStatus, syncGuilds, markOffline } = require('./utils/database');
 const { processDashboardActions } = require('./utils/dashboardActions');
 const { handleMemberJoin } = require('./utils/raidProtection');
 const { relayDmReply } = require('./utils/dmRelay');
@@ -26,6 +26,39 @@ if (!token) {
   process.exit(1);
 }
 console.log('[BWW] Token geladen.');
+
+let dashboardActionsChannel = null;
+let dashboardActionsRealtimeClient = null;
+let dashboardActionsFallbackTimer = null;
+let statusSyncTimer = null;
+let dashboardActionsRunning = false;
+let dashboardActionsRerun = false;
+
+async function processDashboardActionsSafely(client) {
+  if (dashboardActionsRunning) {
+    dashboardActionsRerun = true;
+    return;
+  }
+  dashboardActionsRunning = true;
+  try {
+    do {
+      dashboardActionsRerun = false;
+      await processDashboardActions(client);
+    } while (dashboardActionsRerun);
+  } catch (error) {
+    console.error('[BWW Dashboard] Aktionsverarbeitung fehlgeschlagen:', error.message);
+  } finally {
+    dashboardActionsRunning = false;
+  }
+}
+
+function startDashboardActionsFallback(client) {
+  if (dashboardActionsFallbackTimer) return;
+  console.warn('[BWW Dashboard] Supabase-Realtime nicht verbunden; Fallback-Abfrage alle 60 Sekunden aktiviert.');
+  dashboardActionsFallbackTimer = setInterval(() => {
+    processDashboardActionsSafely(client);
+  }, 60_000);
+}
 
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages, GatewayIntentBits.DirectMessages],
@@ -47,10 +80,36 @@ client.once(Events.ClientReady, async (bot) => {
   startRecurringMessageLoop(client);
   const syncDashboardStatus = () => Promise.all([syncBotStatus(client, 'online'), syncGuilds(client)]).catch((err) => console.error('[BWW Dashboard] Status-Sync fehlgeschlagen:', err.message));
   await syncDashboardStatus();
-  setInterval(syncDashboardStatus, 30000);
-  const processActions = () => processDashboardActions(client).catch((err) => console.error('[BWW Dashboard] Aktionsverarbeitung fehlgeschlagen:', err.message));
+  statusSyncTimer = setInterval(syncDashboardStatus, 60_000);
+  const processActions = () => processDashboardActionsSafely(client);
   await processActions();
-  setInterval(processActions, 5000);
+
+  // Subscribe only to new dashboard actions. The initial catch-up above plus
+  // another catch-up on SUBSCRIBED closes the startup/reconnect race.
+  startDashboardActionsFallback(client);
+  dashboardActionsRealtimeClient = getRealtimeClient();
+  if (dashboardActionsRealtimeClient) {
+    dashboardActionsChannel = dashboardActionsRealtimeClient
+      .channel('bww-dashboard-actions')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'bww_dashboard_actions' },
+        () => { void processActions(); }
+      )
+      .subscribe((status, error) => {
+        if (status === 'SUBSCRIBED') {
+          if (dashboardActionsFallbackTimer) {
+            clearInterval(dashboardActionsFallbackTimer);
+            dashboardActionsFallbackTimer = null;
+          }
+          console.log('[BWW Dashboard] Supabase-Realtime verbunden; Dashboard-Aktionen werden ereignisgesteuert verarbeitet.');
+          void processActions();
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          console.warn('[BWW Dashboard] Realtime-Status:', status, error?.message || '');
+          startDashboardActionsFallback(client);
+        }
+      });
+  }
 
   for (const guild of client.guilds.cache.values()) {
     try {
@@ -107,7 +166,14 @@ client.on(Events.InteractionCreate, (interaction) => {
 });
 
 async function shutdown(signal) {
+  if (statusSyncTimer) clearInterval(statusSyncTimer);
+  if (dashboardActionsFallbackTimer) clearInterval(dashboardActionsFallbackTimer);
   try { await markOffline(client); } catch (err) { console.error('[BWW Dashboard] Offline-Status fehlgeschlagen:', err.message); }
+  if (dashboardActionsRealtimeClient && dashboardActionsChannel) {
+    try { await dashboardActionsRealtimeClient.removeChannel(dashboardActionsChannel); } catch (err) {
+      console.warn('[BWW Dashboard] Realtime-Kanal konnte nicht sauber geschlossen werden:', err.message);
+    }
+  }
   for (const guild of client.guilds.cache.values()) { try { await updateStatusMessage(client, guild.id, 'offline'); } catch {} }
   process.exit(signal === 'SIGINT' ? 130 : 143);
 }

@@ -1,3 +1,4 @@
+const { createClient } = require('@supabase/supabase-js');
 const SUPABASE_URL = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
 const SUPABASE_SECRET_KEY = process.env.SUPABASE_SECRET_KEY || '';
 
@@ -27,6 +28,22 @@ const DEFAULT_SETTINGS = Object.freeze({
 });
 
 const settingsCache = new Map();
+let realtimeClient = null;
+
+function getRealtimeClient() {
+  if (!isConfigured()) return null;
+  if (!realtimeClient) {
+    realtimeClient = createClient(SUPABASE_URL, SUPABASE_SECRET_KEY, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+        detectSessionInUrl: false
+      },
+      realtime: { params: { eventsPerSecond: 10 } }
+    });
+  }
+  return realtimeClient;
+}
 
 function isConfigured() {
   return Boolean(SUPABASE_URL && SUPABASE_SECRET_KEY);
@@ -170,6 +187,7 @@ async function markOffline(client) {
 module.exports = {
   DEFAULT_SETTINGS,
   isConfigured,
+  getRealtimeClient,
   getGuildSettings,
   saveGuildSettings,
   patchGuildSettings,

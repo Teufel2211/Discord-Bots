@@ -184,10 +184,44 @@ async function pollGiveawayCommands() {
       client.say(channel, `🎉 Reroll-Gewinner: @${command.winner}${command.prize ? ` – Preis: ${command.prize}` : ""}`);
     }
   }
-  setTimeout(pollGiveawayCommands, 2000);
 }
-restoreGiveawayState().catch((error) => console.error("Giveaway-Status konnte nicht wiederhergestellt werden:", error.message));
-pollGiveawayCommands();
+let giveawayRealtimeConnected = false;
+let stopGiveawayRealtime = null;
+let giveawayFallbackTimer = null;
+
+function startGiveawayPollingFallback() {
+  if (giveawayFallbackTimer) return;
+  giveawayFallbackTimer = setInterval(() => {
+    if (!giveawayRealtimeConnected) {
+      pollGiveawayCommands().catch((error) => console.error("[GIVEAWAY] Fallback-Abfrage fehlgeschlagen:", error.message));
+    }
+  }, 60_000);
+}
+
+restoreGiveawayState()
+  .catch((error) => console.error("Giveaway-Status konnte nicht wiederhergestellt werden:", error.message))
+  .finally(() => {
+    stopGiveawayRealtime = relay.subscribeToCommands(
+      () => {
+        // Realtime signals a new row; the API fetch preserves the existing
+        // bot-secret check and catches up every command in timestamp order.
+        pollGiveawayCommands().catch((error) => console.error("[GIVEAWAY] Realtime-Catch-up fehlgeschlagen:", error.message));
+      },
+      (status, error) => {
+        giveawayRealtimeConnected = status === "SUBSCRIBED";
+        if (status === "SUBSCRIBED") {
+          console.log("[GIVEAWAY] Supabase-Realtime verbunden.");
+          pollGiveawayCommands().catch((pollError) => console.error("[GIVEAWAY] Initialer Catch-up fehlgeschlagen:", pollError.message));
+        } else if (status === "CONFIG_MISSING") {
+          console.warn("[GIVEAWAY] Realtime nicht konfiguriert; Fallback fragt alle 60 Sekunden ab. Setze GIVEAWAY_SUPABASE_URL und GIVEAWAY_SUPABASE_SECRET_KEY in twitch-chatbot/.env.");
+        } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+          console.warn("[GIVEAWAY] Realtime-Status:", status, error?.message || "");
+        }
+      }
+    );
+    startGiveawayPollingFallback();
+    pollGiveawayCommands().catch((error) => console.error("[GIVEAWAY] Start-Catch-up fehlgeschlagen:", error.message));
+  });
 
 if (DEBUG_TWITCH) {
   console.log("[TTV DEBUG] Verbindungsparameter:", {
@@ -357,8 +391,18 @@ client.on("message", async (target, context, message, self) => {
   }
 });
 
-process.once("SIGINT", () => {
+function shutdownTwitchBot() {
   giveaway.stop();
+  if (giveawayFallbackTimer) clearInterval(giveawayFallbackTimer);
+  if (stopGiveawayRealtime) Promise.resolve(stopGiveawayRealtime()).catch((error) => console.warn("[GIVEAWAY] Realtime konnte nicht sauber geschlossen werden:", error.message));
   client.disconnect();
+}
+
+process.once("SIGINT", () => {
+  shutdownTwitchBot();
+  process.exit(0);
+});
+process.once("SIGTERM", () => {
+  shutdownTwitchBot();
   process.exit(0);
 });
