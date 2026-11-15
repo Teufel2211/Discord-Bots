@@ -6,7 +6,7 @@ Sammlung der Discord- und Twitch-Bots.
 
 Es gibt zwei unterstützte Betriebsarten:
 
-### Eine KataBump-Instanz für alle drei Bots
+### Eine KataBump-Instanz für alle vier Bots
 
 - **Startbefehl:** \`node start-all.js\`
 - **GitHub-Branch:** optional \`GITHUB_BRANCH=master\` (Standard: \`master\`)
