@@ -2,8 +2,14 @@ const { createClient } = require("@supabase/supabase-js");
 
 const apiUrl = (process.env.GIVEAWAY_API_URL || "").trim().replace(/\/$/, "");
 const botSecret = (process.env.GIVEAWAY_BOT_SECRET || "").trim();
-const realtimeUrl = (process.env.GIVEAWAY_SUPABASE_URL || process.env.SUPABASE_URL || "").trim().replace(/\/$/, "");
-const realtimeKey = (process.env.GIVEAWAY_SUPABASE_SECRET_KEY || process.env.SUPABASE_SECRET_KEY || "").trim();
+
+// Realtime only exposes a public signal row. Actual giveaway commands are
+// still fetched from the Vercel API using GIVEAWAY_BOT_SECRET.
+const realtimeUrl = (process.env.GIVEAWAY_SUPABASE_URL || "https://hfreshlzwukfaeyveddv.supabase.co").trim().replace(/\/$/, "");
+const realtimeKey = (
+  process.env.GIVEAWAY_SUPABASE_PUBLISHABLE_KEY ||
+  "sb_publishable_mMNhPZgSP6GSFKWiyrRbgg_FF8Lhc4m"
+).trim();
 let lastErrorAt = 0;
 
 function request(path, options = {}) {
@@ -25,11 +31,6 @@ function request(path, options = {}) {
 }
 
 function subscribeToCommands(onInsert = () => {}, onStatus = () => {}) {
-  if (!realtimeUrl || !realtimeKey) {
-    onStatus("CONFIG_MISSING", new Error("GIVEAWAY_SUPABASE_URL oder GIVEAWAY_SUPABASE_SECRET_KEY fehlt."));
-    return () => {};
-  }
-
   const supabase = createClient(realtimeUrl, realtimeKey, {
     auth: {
       autoRefreshToken: false,
@@ -40,10 +41,10 @@ function subscribeToCommands(onInsert = () => {}, onStatus = () => {}) {
   });
 
   const channel = supabase
-    .channel("twitch-giveaway-command-listener")
+    .channel("twitch-giveaway-signal-listener")
     .on(
       "postgres_changes",
-      { event: "INSERT", schema: "public", table: "tw_giveaway_commands" },
+      { event: "INSERT", schema: "public", table: "tw_giveaway_signals" },
       (payload) => {
         try {
           onInsert(payload);
