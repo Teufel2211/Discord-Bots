@@ -1,7 +1,7 @@
 import { canExecuteCommand, hasExplicitCommandAllow } from "./modules/command-permissions.js";
 import dotenv from "dotenv";
-import { fileURLToPath } from "node:url";
-dotenv.config({ path: fileURLToPath(new URL("../.env", import.meta.url)) });
+import path from "node:path";
+dotenv.config({ path: path.resolve(process.cwd(), "servercore/.env") });
 
 import {
   ActionRowBuilder,
@@ -73,13 +73,15 @@ type TicketRow = {
   claimed_by: string | null;
 };
 
+async function main(): Promise<void> {
 const token = process.env.DISCORD_BOT_TOKEN;
 const databaseUrl = process.env.DATABASE_URL;
 if (!token) throw new Error("DISCORD_BOT_TOKEN is required.");
 if (!databaseUrl) throw new Error("DATABASE_URL is required.");
 
 const database = createDatabase(databaseUrl);
-await runMigrations(database);
+try {
+  await runMigrations(database);
 
 const ticketCommand = new SlashCommandBuilder()
   .setName("ticket")
@@ -1011,3 +1013,13 @@ process.once("SIGINT", () => void shutdown("SIGINT"));
 process.once("SIGTERM", () => void shutdown("SIGTERM"));
 
 await client.login(token);
+} catch (error) {
+  await closeDatabase(database).catch(() => undefined);
+  throw error;
+}
+}
+
+void main().catch((error) => {
+  console.error("[SC] Start fehlgeschlagen:", error);
+  process.exitCode = 1;
+});
