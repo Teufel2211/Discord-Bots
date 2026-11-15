@@ -2,14 +2,6 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
     {
-      "source": "/api/giveaway",
-      "destination": "https://bww-nu.vercel.app/api/giveaway"
-    },
-    {
-      "source": "/api/watchtime",
-      "destination": "https://bww-nu.vercel.app/api/watchtime"
-    },
-    {
       "source": "/",
       "destination": "/giveaway.html"
     },
