@@ -1,6 +1,19 @@
 const { createClient } = require("@supabase/supabase-js");
 
-const apiUrl = (process.env.GIVEAWAY_API_URL || "").trim().replace(/\/$/, "");
+const configuredApiUrl = (process.env.GIVEAWAY_API_URL || "").trim();
+function normalizeApiUrl(value) {
+  if (!value) return "";
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return value.replace(/\/$/, "");
+    // Accept either the complete function URL or just the Vercel project origin.
+    if (!parsed.pathname || parsed.pathname === "/") parsed.pathname = "/api/giveaway";
+    return parsed.toString().replace(/\/$/, "");
+  } catch {
+    return value.replace(/\/$/, "");
+  }
+}
+const apiUrl = normalizeApiUrl(configuredApiUrl);
 const botSecret = (process.env.GIVEAWAY_BOT_SECRET || "").trim();
 
 // Realtime only exposes a public signal row. Actual giveaway commands are
@@ -18,8 +31,21 @@ function request(path, options = {}) {
     ...options,
     headers: { "content-type": "application/json", authorization: "Bearer " + botSecret, ...(options.headers || {}) }
   }).then(async (response) => {
-    if (!response.ok) throw new Error("Giveaway-API HTTP " + response.status);
-    return response.json();
+    const responseText = await response.text();
+    if (!response.ok) {
+      let endpoint = "";
+      try {
+        const parsed = new URL(response.url);
+        endpoint = " (" + parsed.origin + parsed.pathname + ")";
+      } catch {}
+      const detail = responseText.replace(/\\s+/g, " ").slice(0, 180);
+      throw new Error("Giveaway-API HTTP " + response.status + endpoint + (detail ? ": " + detail : ""));
+    }
+    try {
+      return responseText ? JSON.parse(responseText) : {};
+    } catch {
+      throw new Error("Giveaway-API lieferte keine gültige JSON-Antwort.");
+    }
   }).catch((error) => {
     const now = Date.now();
     if (now - lastErrorAt > 10_000) {
