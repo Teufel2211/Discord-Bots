@@ -38,7 +38,7 @@ function request(path, options = {}) {
         const parsed = new URL(response.url);
         endpoint = " (" + parsed.origin + parsed.pathname + ")";
       } catch {}
-      const detail = responseText.replace(/\\s+/g, " ").slice(0, 180);
+      const detail = responseText.replace(/\s+/g, " ").slice(0, 180);
       throw new Error("Giveaway-API HTTP " + response.status + endpoint + (detail ? ": " + detail : ""));
     }
     try {
