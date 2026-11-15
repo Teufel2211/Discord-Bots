@@ -4,7 +4,10 @@ process.on('uncaughtExceptionMonitor', (error, origin) => {
   console.error('[BWW FATAL] Uncaught exception (' + origin + '):', error?.stack || error);
 });
 process.on('warning', (warning) => {
-  console.warn('[BWW Node-Warnung]:', warning?.stack || warning);
+  console.warn('[BWW NODE WARNING]', warning?.stack || warning);
+});
+process.on('exit', (code) => {
+  console.log('[BWW] Node-Prozess beendet. Exit-Code:', code);
 });
 
 const envPath = path.resolve(__dirname, '../../bww/.env');
@@ -34,6 +37,7 @@ if (!token) {
   process.exit(1);
 }
 console.log('[BWW] Token geladen.');
+console.log('[BWW] Module geladen; initialisiere Discord-Client …');
 
 function logRuntimeMemory(label) {
   const memory = process.memoryUsage();
@@ -95,6 +99,7 @@ client.on('shardDisconnect', (event, shardId) => {
   });
 });
 client.on('warn', warning => console.warn('[BWW Discord] Warnung:', warning));
+client.on('shardReconnecting', shardId => console.warn('[BWW Discord] Gateway verbindet erneut:', shardId));
 
 client.once(Events.ClientReady, async (bot) => {
   logRuntimeMemory('Discord Ready');
