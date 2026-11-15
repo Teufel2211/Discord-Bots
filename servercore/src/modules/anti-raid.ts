@@ -9,7 +9,7 @@ import type { createDatabase } from "../database.js";
 import {
   antiRaidConfigSchema,
   type AntiRaidConfig
-} from "@servercore/contracts";
+} from "../contracts.js";
 
 type RecentJoin = {
   member: GuildMember;
