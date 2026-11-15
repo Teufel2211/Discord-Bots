@@ -108,18 +108,19 @@ export function createDatabase(supabaseUrl: string, secretKey: string): ServerCo
         ): Promise<QueryResult<Row>> {
           const command = sql.trim().replace(/;$/, "").trim();
 
-          if (/^BEGIN(?:\\s|$)/i.test(command)) {
+          const normalizedCommand = command.toUpperCase();
+          if (normalizedCommand === "BEGIN" || normalizedCommand.startsWith("BEGIN ")) {
             if (transaction) throw new Error("A Supabase transaction is already active.");
             transaction = [];
             return { rows: [], rowCount: 0 };
           }
 
-          if (/^ROLLBACK(?:\\s|$)/i.test(command)) {
+          if (normalizedCommand === "ROLLBACK" || normalizedCommand.startsWith("ROLLBACK ")) {
             transaction = null;
             return { rows: [], rowCount: 0 };
           }
 
-          if (/^COMMIT(?:\\s|$)/i.test(command)) {
+          if (normalizedCommand === "COMMIT" || normalizedCommand.startsWith("COMMIT ")) {
             if (!transaction) return { rows: [], rowCount: 0 };
             const statements = transaction;
             transaction = null;
