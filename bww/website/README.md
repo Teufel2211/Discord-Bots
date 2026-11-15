@@ -13,6 +13,18 @@ Das Dashboard läuft als Vercel-Serverless-App unter `bww/website` und verwendet
 
 Es werden keine Supabase-Schlüssel an den Browser ausgeliefert. Sitzungen werden als SHA-256-Hash gespeichert; das Cookie ist HttpOnly und SameSite=Lax.
 
+## Twitch-Giveaway-API
+
+Die Twitch-Giveaway- und Watchtime-API wird über dieselbe Vercel-App bereitgestellt:
+- `GET/POST /api/giveaway`
+- `GET/POST /api/watchtime`
+
+Zusätzliche serverseitige Umgebungsvariablen:
+- `GIVEAWAY_BOT_SECRET` – Bearer-Secret für den Twitch-Bot
+- `GIVEAWAY_ADMIN_SECRET` – Admin-Passwort für die Giveaway-Verwaltung
+
+Die API verwendet standardmäßig die vorhandenen `SUPABASE_URL`- und `SUPABASE_SECRET_KEY`-Variablen. Separate `GIVEAWAY_SUPABASE_*`-Variablen können diese überschreiben. Die Bot-Routen prüfen das Bearer-Secret serverseitig.
+
 ## Bereiche
 - Übersicht und Bot-Status
 - Digitale Personalakten
