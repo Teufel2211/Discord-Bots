@@ -245,7 +245,7 @@ Die Statusnachricht wird regelmäßig aktualisiert. Beim regulären Herunterfahr
 
 ## Webdashboard
 
-Das Webdashboard liegt unter `bww/website` und wird separat über Vercel bereitgestellt. Es verwendet dieselbe Supabase-Datenbank wie der Bot. Die Verbindung zum laufenden Bot erfolgt über die serverseitige Tabelle `bww_dashboard_actions`; der Bot verarbeitet neue Aktionen im 5-Sekunden-Takt.
+Das Webdashboard liegt unter `bww/website` und wird separat über Vercel bereitgestellt. Es verwendet dieselbe Supabase-Datenbank wie der Bot. Die Verbindung zum laufenden Bot erfolgt über die serverseitige Tabelle `bww_dashboard_actions`. Neue Dashboard-Aktionen werden ereignisgesteuert über Supabase Realtime empfangen.
 
 ### Dashboard-Login
 
@@ -266,6 +266,8 @@ Serverseitig benötigt das Vercel-Projekt `SUPABASE_URL` und `SUPABASE_SECRET_KE
 - Giveaways, Einstellungen und Aktionsprotokoll
 
 Der Bot muss online sein, damit Nachrichten, Embeds, DM-Dialoge und Lockdown-Aktionen aus dem Dashboard ausgeführt werden.
+
+Falls die Realtime-Verbindung ausfällt, fragt der Bot die Aktionswarteschlange nur noch alle 60 Sekunden ab. Der Bot-Status und die Server-Synchronisierung werden ebenfalls alle 60 Sekunden aktualisiert.
 
 ## Neue Verwaltungsbefehle
 
