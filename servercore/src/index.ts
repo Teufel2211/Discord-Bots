@@ -75,11 +75,13 @@ type TicketRow = {
 
 async function main(): Promise<void> {
 const token = process.env.DISCORD_BOT_TOKEN;
-const databaseUrl = process.env.DATABASE_URL;
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY;
 if (!token) throw new Error("DISCORD_BOT_TOKEN is required.");
-if (!databaseUrl) throw new Error("DATABASE_URL is required.");
+if (!supabaseUrl) throw new Error("SUPABASE_URL is required.");
+if (!supabaseSecretKey) throw new Error("SUPABASE_SECRET_KEY is required.");
 
-const database = createDatabase(databaseUrl);
+const database = createDatabase(supabaseUrl, supabaseSecretKey);
 try {
   await runMigrations(database);
 
