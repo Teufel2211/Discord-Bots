@@ -344,16 +344,18 @@ BEGIN
   IF jsonb_typeof(COALESCE(p_params, '[]'::jsonb)) <> 'array' THEN
     RAISE EXCEPTION 'SQL parameters must be a JSON array.';
   END IF;
-  IF p_sql !~* '^\\s*(SELECT|INSERT|UPDATE|DELETE|WITH)\\b' THEN
+  IF upper(ltrim(p_sql)) !~ '^(SELECT|INSERT|UPDATE|DELETE|WITH)([[:space:]]|$)' THEN
     RAISE EXCEPTION 'Only SELECT/INSERT/UPDATE/DELETE statements are allowed.';
   END IF;
   IF p_sql !~ '"SC_[A-Za-z0-9_]+"' THEN
     RAISE EXCEPTION 'SQL may only target ServerCore tables.';
   END IF;
-  IF p_sql ~ ';|--|/\\*|\\*/' OR p_sql ~* '\\b(pg_catalog|information_schema|auth|storage|vault)\\b' THEN
+  IF position(';' in p_sql) > 0 OR position('--' in p_sql) > 0
+     OR position('/*' in p_sql) > 0 OR position('*/' in p_sql) > 0
+     OR lower(p_sql) ~ '(pg_catalog|information_schema|auth|storage|vault)' THEN
     RAISE EXCEPTION 'The SQL statement contains a forbidden construct.';
   END IF;
-  IF p_sql ~* '\\b(CREATE|ALTER|DROP|TRUNCATE|GRANT|REVOKE|COPY|CALL|DO|SET|RESET|VACUUM|ANALYZE|EXPLAIN)\\b' THEN
+  IF upper(p_sql) ~ '(^|[[:space:]])(CREATE|ALTER|DROP|TRUNCATE|GRANT|REVOKE|COPY|CALL|DO|SET|RESET|VACUUM|ANALYZE|EXPLAIN)([[:space:]]|$)' THEN
     RAISE EXCEPTION 'DDL and administrative SQL are not allowed through this endpoint.';
   END IF;
 
@@ -374,7 +376,7 @@ BEGIN
       WHEN 'array' THEN
         SELECT 'ARRAY[' || COALESCE(string_agg(quote_nullable(item #>> '{}'), ','), '') || ']'
           INTO v_replacement
-        FROM jsonb_array_elements(v_parameter.value) AS values(item);
+        FROM jsonb_array_elements(v_parameter.value) AS element(item);
       WHEN 'object' THEN
         v_replacement := quote_nullable(v_parameter.value::text);
       ELSE
@@ -384,7 +386,7 @@ BEGIN
     v_sql := replace(v_sql, '$' || v_parameter.ordinality::text, v_replacement);
   END LOOP;
 
-  IF v_sql ~* '^\\s*SELECT\\b' OR v_sql ~* '\\bRETURNING\\b' THEN
+  IF upper(ltrim(v_sql)) ~ '^SELECT([[:space:]]|$)' OR position('RETURNING' in upper(v_sql)) > 0 THEN
     FOR v_row IN EXECUTE v_sql LOOP
       v_rows := v_rows || jsonb_build_array(to_jsonb(v_row));
       IF jsonb_array_length(v_rows) > 5000 THEN
