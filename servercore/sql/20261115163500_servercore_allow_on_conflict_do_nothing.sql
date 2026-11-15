@@ -9,8 +9,10 @@ SET search_path = pg_catalog, public
 AS $function$
 DECLARE
   v_sql text := p_sql;
+  v_nonce text := replace(gen_random_uuid()::text, '-', '');
   v_parameter record;
   v_replacement text;
+  v_token text;
   v_row record;
   v_rows jsonb := '[]'::jsonb;
   v_row_count bigint := 0;
@@ -39,6 +41,55 @@ BEGIN
   IF upper(p_sql) ~ '(^|[[:space:]])(CREATE|ALTER|DROP|TRUNCATE|GRANT|REVOKE|COPY|CALL|RESET|VACUUM|ANALYZE|EXPLAIN)([[:space:]]|$)' THEN
     RAISE EXCEPTION 'DDL and administrative SQL are not allowed through this endpoint.';
   END IF;
+
+  -- Replace placeholders with per-call sentinels first. This prevents a
+  -- value containing text such as "$2" from being rewritten as another argument.
+  FOR v_parameter IN
+    SELECT ordinality
+    FROM jsonb_array_elements(COALESCE(p_params, '[]'::jsonb)) WITH ORDINALITY
+    ORDER BY ordinality DESC
+  LOOP
+    v_token := '__SC_SQL_PARAM_' || v_nonce || '_' || v_parameter.ordinality::text || '__';
+    v_sql := replace(v_sql, '
+      WHEN 'null' THEN
+        v_replacement := 'NULL';
+      WHEN 'string' THEN
+        v_replacement := quote_nullable(v_parameter.value #>> '{}');
+      WHEN 'number' THEN
+        v_replacement := v_parameter.value::text;
+      WHEN 'boolean' THEN
+        v_replacement := v_parameter.value::text;
+      WHEN 'array' THEN
+        SELECT 'ARRAY[' || COALESCE(string_agg(quote_nullable(item #>> '{}'), ','), '') || ']'
+          INTO v_replacement
+        FROM jsonb_array_elements(v_parameter.value) AS element(item);
+      WHEN 'object' THEN
+        v_replacement := quote_nullable(v_parameter.value::text);
+      ELSE
+        RAISE EXCEPTION 'Unsupported SQL parameter type.';
+    END CASE;
+
+    v_token := '__SC_SQL_PARAM_' || v_nonce || '_' || v_parameter.ordinality::text || '__';
+    v_sql := replace(v_sql, v_token, v_replacement);
+  END LOOP;
+
+  IF upper(ltrim(v_sql)) ~ '^SELECT([[:space:]]|$)' OR position('RETURNING' in upper(v_sql)) > 0 THEN
+    FOR v_row IN EXECUTE v_sql LOOP
+      v_rows := v_rows || jsonb_build_array(to_jsonb(v_row));
+      IF jsonb_array_length(v_rows) > 5000 THEN
+        RAISE EXCEPTION 'Query returned too many rows; add a LIMIT clause.';
+      END IF;
+    END LOOP;
+    v_row_count := jsonb_array_length(v_rows);
+  ELSE
+    EXECUTE v_sql;
+    GET DIAGNOSTICS v_row_count = ROW_COUNT;
+  END IF;
+
+  RETURN jsonb_build_object('rows', v_rows, 'rowCount', v_row_count);
+END;
+$function$; || v_parameter.ordinality::text, v_token);
+  END LOOP;
 
   FOR v_parameter IN
     SELECT value, ordinality
