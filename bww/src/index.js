@@ -32,9 +32,6 @@ console.log('[BWW] Token geladen.');
 process.on('uncaughtExceptionMonitor', (error, origin) => {
   console.error('[BWW FATAL] Unbehandelte Exception:', { origin, stack: error?.stack || String(error) });
 });
-process.on('unhandledRejection', (reason) => {
-  console.error('[BWW FATAL] Unbehandelte Promise-Rejection:', reason?.stack || reason);
-});
 process.on('warning', (warning) => {
   console.warn('[BWW NODE WARNING]', warning?.stack || warning);
 });
