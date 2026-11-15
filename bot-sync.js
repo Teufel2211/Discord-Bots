@@ -11,7 +11,8 @@ const ROOT = __dirname;
 const BOT_MAP = Object.freeze({
   BWW: { label: 'BWW', entry: 'bww/src/index.js' },
   VC: { label: 'VC', entry: 'current/index.js' },
-  TTV: { label: 'TTV', entry: 'twitch-chatbot/src/index.js' }
+  TTV: { label: 'TTV', entry: 'twitch-chatbot/src/index.js' },
+  SC: { label: 'SC', entry: 'servercore/start.js' }
 });
 
 let child = null;
@@ -90,7 +91,7 @@ function main() {
   const rawAbbr = String(process.env.BOT_ABBR || '').trim().toUpperCase();
   const bot = BOT_MAP[rawAbbr];
   if (!bot) {
-    console.error('[BOT-SYNC] BOT_ABBR fehlt oder ist ungültig. Setze BWW, VC oder TTV.');
+    console.error('[BOT-SYNC] BOT_ABBR fehlt oder ist ungültig. Setze BWW, VC, TTV oder SC.');
     process.exit(1);
   }
 
