@@ -63,7 +63,7 @@ alter table public.tw_watchtime enable row level security;
 revoke all on public.tw_watchtime from anon, authenticated;
 
 -- Realtime: der Bot erhält neue Befehle per INSERT-Event statt per Dauer-Polling.
-do $
+do $$ 
 begin
   if exists (select 1 from pg_publication where pubname = 'supabase_realtime')
      and not exists (
@@ -75,4 +75,4 @@ begin
     execute 'alter publication supabase_realtime add table public.tw_giveaway_commands';
   end if;
 end
-$;
+$$;
