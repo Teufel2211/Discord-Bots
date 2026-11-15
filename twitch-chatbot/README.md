@@ -70,14 +70,13 @@ Den `GIVEAWAY_SUPABASE_SECRET_KEY` niemals in `public/` oder im Browser eintrage
 
 ## Supabase Realtime für Giveaways
 
-Der Bot hört neue Giveaway-Befehle direkt über Supabase Realtime ab, statt alle zwei Sekunden die API abzufragen. Trage dafür in der privaten `twitch-chatbot/.env` dieselbe Projekt-URL und denselben serverseitigen Secret Key ein, die auch das Vercel-Giveaway-Backend verwendet:
+Der Bot hört auf einen separaten, inhaltsarmen Signal-Datensatz in Supabase Realtime. Die eigentlichen Giveaway-Befehle und Teilnehmerdaten bleiben geschützt und werden weiterhin ausschließlich über die Vercel-API mit `GIVEAWAY_BOT_SECRET` abgerufen.
 
-- `GIVEAWAY_SUPABASE_URL`
-- `GIVEAWAY_SUPABASE_SECRET_KEY`
+Für Realtime verwendet der Bot einen öffentlichen Supabase Publishable Key, der standardmäßig bereits hinterlegt ist. Es wird **kein Supabase-Secret-Key** in der privaten Bot-`.env`, in KataBump oder im Repository benötigt. Optional kann der Publishable Key über `GIVEAWAY_SUPABASE_PUBLISHABLE_KEY` überschrieben werden.
 
-Der Schlüssel bleibt ausschließlich in der privaten Bot-`.env` und darf niemals in den Browser oder ins Repository gelangen. Wenn Realtime nicht erreichbar oder nicht konfiguriert ist, verwendet der Bot automatisch einen 60-Sekunden-Fallback über die bestehende authentifizierte API.
+Die Datenbank erzeugt nach jedem neuen Eintrag in `tw_giveaway_commands` automatisch eine Zeile in `tw_giveaway_signals`. Diese Tabelle enthält nur eine ID und einen Zeitstempel. Der Signal-Listener löst anschließend den bestehenden authentifizierten API-Catch-up aus. Bei Verbindungsproblemen verwendet der Bot einen 60-Sekunden-Fallback.
 
-Die Tabelle `public.tw_giveaway_commands` muss in der Publication `supabase_realtime` aktiviert sein. Das Setup-SQL erledigt dies idempotent.
+Das Setup-SQL richtet die Signal-Tabelle, ihre eingeschränkte Lesepolicy und den Trigger idempotent ein.
 
 ## Befehle im Twitch-Chat
 - `!help` oder `!hilfe` — zeigt die Befehle
