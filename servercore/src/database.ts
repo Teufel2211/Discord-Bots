@@ -160,7 +160,7 @@ export function createDatabase(supabaseUrl: string, secretKey: string): ServerCo
 }
 
 export async function checkDatabase(database: ServerCoreDatabase): Promise<void> {
-  await database.query("SELECT guild_id FROM \\"SC_guilds\\" LIMIT 0");
+  await database.query("SELECT guild_id FROM \"SC_guilds\" LIMIT 0");
 }
 
 /**
