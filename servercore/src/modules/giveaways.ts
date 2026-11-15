@@ -76,51 +76,18 @@ function pickWeightedUser(participants: Array<{ user_id: string; bonus_entries: 
 }
 
 async function drawGiveaway(client: Client, database: Database, row: GiveawayRow, actorId: string | null): Promise<string[]> {
-  const connection = await database.connect();
-  let winners: string[] = [];
-  let participantCount = 0;
-  let claimed = false;
-  try {
-    await connection.query("BEGIN");
-    const claim = await connection.query(
-      "UPDATE \"SC_giveaways\" SET ended=TRUE,ended_at=NOW(),result_publication_pending=TRUE,updated_at=NOW() WHERE giveaway_id=$1 AND guild_id=$2 AND ended=FALSE RETURNING giveaway_id",
-      [row.giveaway_id, row.guild_id]
-    );
-    if (!claim.rowCount) {
-      await connection.query("ROLLBACK");
-      const current = await database.query<{ winner_ids: string[] }>(
-        "SELECT winner_ids FROM \"SC_giveaways\" WHERE giveaway_id=$1 AND guild_id=$2",
-        [row.giveaway_id, row.guild_id]
-      );
-      return current.rows[0]?.winner_ids ?? [];
-    }
-    claimed = true;
-    const participants = await connection.query<{ user_id: string; bonus_entries: number }>(
-      "SELECT user_id,bonus_entries FROM \"SC_giveaway_entries\" WHERE giveaway_id=$1",
-      [row.giveaway_id]
-    );
-    participantCount = participants.rows.length;
-    const remaining = [...participants.rows];
-    while (remaining.length && winners.length < row.winner_count) {
-      const winner = pickWeightedUser(remaining);
-      if (!winner) break;
-      winners.push(winner);
-      const winnerIndex = remaining.findIndex((participant) => participant.user_id === winner);
-      if (winnerIndex >= 0) remaining.splice(winnerIndex, 1);
-    }
-    await connection.query("UPDATE \"SC_giveaways\" SET winner_ids=$2::text[],updated_at=NOW() WHERE giveaway_id=$1", [row.giveaway_id, winners]);
-    await connection.query(
-      "INSERT INTO \"SC_audit_logs\" (guild_id,actor_id,action,target_id,metadata) VALUES ($1,$2,'giveaway.drawn',$3,$4::jsonb)",
-      [row.guild_id, actorId, row.giveaway_id, JSON.stringify({ winnerIds: winners, participantCount })]
-    );
-    await connection.query("COMMIT");
-  } catch (error) {
-    await connection.query("ROLLBACK").catch(() => undefined);
-    throw error;
-  } finally {
-    connection.release();
-  }
-  if (claimed) {
+  const result = await database.rpc<{
+    claimed: boolean;
+    winner_ids: string[];
+    participant_count: number;
+  }>("sc_draw_giveaway", {
+    p_giveaway_id: row.giveaway_id,
+    p_guild_id: row.guild_id,
+    p_actor_id: actorId
+  });
+
+  const winners = Array.isArray(result.winner_ids) ? result.winner_ids : [];
+  if (result.claimed) {
     try {
       await publishGiveawayResult(client, database, { ...row, winner_ids: winners });
     } catch (error) {
@@ -151,35 +118,17 @@ export function attachGiveaways(client: Client, database: Database): void {
         const joiningMember = await interaction.guild.members.fetch(interaction.user.id);
         const bonus = giveaway.bonus_role_id && joiningMember.roles.cache.has(giveaway.bonus_role_id)
           ? giveaway.bonus_entries : 0;
-        const connection = await database.connect();
-        let joinStatus: "inserted" | "existing" | "ended" = "ended";
-        try {
-          await connection.query("BEGIN");
-          const locked = await connection.query<{ ended: boolean; ends_at: Date }>(
-            "SELECT ended,ends_at FROM \"SC_giveaways\" WHERE giveaway_id=$1 AND guild_id=$2 FOR UPDATE",
-            [giveawayId, interaction.guild.id]
-          );
-          const current = locked.rows[0];
-          if (current && !current.ended && new Date(current.ends_at).getTime() > Date.now()) {
-            const inserted = await connection.query(
-              "INSERT INTO \"SC_giveaway_entries\" (giveaway_id,guild_id,user_id,bonus_entries) VALUES ($1,$2,$3,$4) ON CONFLICT (giveaway_id,user_id) DO NOTHING RETURNING user_id",
-              [giveawayId, interaction.guild.id, interaction.user.id, bonus]
-            );
-            joinStatus = inserted.rowCount ? "inserted" : "existing";
-            if (inserted.rowCount) {
-              await connection.query(
-                "INSERT INTO \"SC_audit_logs\" (guild_id,actor_id,action,target_id,metadata) VALUES ($1,$2,'giveaway.entry_created',$3,$4::jsonb)",
-                [interaction.guild.id, interaction.user.id, giveawayId, JSON.stringify({ bonusEntries: bonus })]
-              );
-            }
+        const joinResult = await database.rpc<{ status: "inserted" | "existing" | "ended" }>(
+          "sc_join_giveaway",
+          {
+            p_giveaway_id: giveawayId,
+            p_guild_id: interaction.guild.id,
+            p_user_id: interaction.user.id,
+            p_bonus_entries: bonus
           }
-          await connection.query("COMMIT");
-        } catch (error) {
-          await connection.query("ROLLBACK").catch(() => undefined);
-          throw error;
-        } finally {
-          connection.release();
-        }
+        );
+        const joinStatus = joinResult.status;
+
         if (joinStatus !== "inserted") {
           await interaction.reply({
             content: joinStatus === "existing"
@@ -294,56 +243,41 @@ export function attachGiveaways(client: Client, database: Database): void {
         await interaction.reply({ content: "Eine Neuauslosung ist erst nach Ende des Gewinnspiels möglich.", ephemeral: true });
         return;
       }
-      const connection = await database.connect();
-      let oldWinner = "";
-      let nextWinner = "";
-      let updatedWinners: string[] = [];
-      try {
-        await connection.query("BEGIN");
-        const locked = await connection.query<{ winner_ids: string[]; ended: boolean }>(
-          "SELECT winner_ids,ended FROM \"SC_giveaways\" WHERE giveaway_id=$1 AND guild_id=$2 FOR UPDATE",
-          [id, interaction.guild.id]
-        );
-        const current = locked.rows[0];
-        if (!current?.ended) {
-          await connection.query("ROLLBACK");
-          await interaction.reply({ content: "Eine Neuauslosung ist erst nach Ende des Gewinnspiels möglich.", ephemeral: true });
-          return;
-        }
-        const previous = current.winner_ids ?? [];
-        oldWinner = interaction.options.getUser("gewinner")?.id ?? previous[previous.length - 1] ?? "";
-        if (!oldWinner || !previous.includes(oldWinner)) {
-          await connection.query("ROLLBACK");
-          await interaction.reply({ content: previous.length
-            ? "Der angegebene Benutzer ist kein bisheriger Gewinner."
-            : "Es gibt keinen bisherigen Gewinner, der ersetzt werden kann.", ephemeral: true });
-          return;
-        }
-        const participants = await connection.query<{ user_id: string; bonus_entries: number }>(
-          "SELECT user_id,bonus_entries FROM \"SC_giveaway_entries\" WHERE giveaway_id=$1",
-          [id]
-        );
-        const eligible = participants.rows.filter((participant) => !previous.includes(participant.user_id));
-        nextWinner = pickWeightedUser(eligible) ?? "";
-        if (!nextWinner) {
-          await connection.query("ROLLBACK");
-          await interaction.reply({ content: "Es gibt keine weiteren Teilnehmer für einen Ersatzgewinner.", ephemeral: true });
-          return;
-        }
-        if (!nextWinner) throw new Error("Neuauslosung lieferte keinen Gewinner.");
-        updatedWinners = previous.map((winner) => winner === oldWinner ? nextWinner : winner);
-        await connection.query("UPDATE \"SC_giveaways\" SET winner_ids=$2::text[],result_published_at=NULL,result_publication_pending=TRUE,result_publish_after=NOW(),result_publish_error=NULL,updated_at=NOW() WHERE giveaway_id=$1", [id, updatedWinners]);
-        await connection.query(
-          "INSERT INTO \"SC_audit_logs\" (guild_id,actor_id,action,target_id,metadata) VALUES ($1,$2,'giveaway.redrawn',$3,$4::jsonb)",
-          [interaction.guild.id, interaction.user.id, id, JSON.stringify({ previousWinners: previous, replacedWinner: oldWinner, newWinner: nextWinner })]
-        );
-        await connection.query("COMMIT");
-      } catch (error) {
-        await connection.query("ROLLBACK").catch(() => undefined);
-        throw error;
-      } finally {
-        connection.release();
+      const redrawResult = await database.rpc<{
+        status: "not_ended" | "invalid_winner" | "no_alternative" | "success";
+        has_previous?: boolean;
+        old_winner_id?: string;
+        new_winner_id?: string;
+        winner_ids?: string[];
+      }>("sc_redraw_giveaway", {
+        p_giveaway_id: id,
+        p_guild_id: interaction.guild.id,
+        p_actor_id: interaction.user.id,
+        p_requested_winner_id: interaction.options.getUser("gewinner")?.id ?? null
+      });
+
+      if (redrawResult.status === "not_ended") {
+        await interaction.reply({ content: "Eine Neuauslosung ist erst nach Ende des Gewinnspiels möglich.", ephemeral: true });
+        return;
       }
+      if (redrawResult.status === "invalid_winner") {
+        await interaction.reply({
+          content: redrawResult.has_previous
+            ? "Der angegebene Benutzer ist kein bisheriger Gewinner."
+            : "Es gibt keinen bisherigen Gewinner, der ersetzt werden kann.",
+          ephemeral: true
+        });
+        return;
+      }
+      if (redrawResult.status !== "success" || !redrawResult.old_winner_id || !redrawResult.new_winner_id) {
+        await interaction.reply({ content: "Es gibt keine weiteren Teilnehmer für einen Ersatzgewinner.", ephemeral: true });
+        return;
+      }
+
+      const oldWinner = redrawResult.old_winner_id;
+      const nextWinner = redrawResult.new_winner_id;
+      const updatedWinners = Array.isArray(redrawResult.winner_ids) ? redrawResult.winner_ids : [];
+
       await interaction.reply({
         content: "Ersatzgewinner für <@" + oldWinner + ">: <@" + nextWinner + ">.",
         allowedMentions: { users: [oldWinner, nextWinner] },
