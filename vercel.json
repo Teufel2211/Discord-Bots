@@ -1,0 +1,11 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
+    { "source": "/", "destination": "/twitch-chatbot/public/giveaway.html" },
+    { "source": "/giveaway", "destination": "/twitch-chatbot/public/giveaway.html" },
+    { "source": "/giveaway/admin", "destination": "/twitch-chatbot/public/giveaway-admin.html" },
+    { "source": "/giveaway/admin/", "destination": "/twitch-chatbot/public/giveaway-admin.html" },
+    { "source": "/giveaway/admin-dauer", "destination": "/twitch-chatbot/public/giveaway-admin.html" },
+    { "source": "/giveaway/admin-dauer/", "destination": "/twitch-chatbot/public/giveaway-admin.html" }
+  ]
+}

@@ -1,4 +1,15 @@
 const path = require('node:path');
+
+process.on('uncaughtExceptionMonitor', (error, origin) => {
+  console.error('[BWW FATAL] Uncaught exception (' + origin + '):', error?.stack || error);
+});
+process.on('warning', (warning) => {
+  console.warn('[BWW NODE WARNING]', warning?.stack || warning);
+});
+process.on('exit', (code) => {
+  console.log('[BWW] Node-Prozess beendet. Exit-Code:', code);
+});
+
 const envPath = path.resolve(__dirname, '../../bww/.env');
 const envResult = require('dotenv').config({ path: envPath });
 
@@ -26,6 +37,18 @@ if (!token) {
   process.exit(1);
 }
 console.log('[BWW] Token geladen.');
+console.log('[BWW] Module geladen; initialisiere Discord-Client …');
+
+function logRuntimeMemory(label) {
+  const memory = process.memoryUsage();
+  const mb = value => (value / 1024 / 1024).toFixed(1) + ' MB';
+  console.log('[BWW Runtime] ' + label + ' | RSS=' + mb(memory.rss) +
+    ', Heap=' + mb(memory.heapUsed) + '/' + mb(memory.heapTotal) +
+    ', External=' + mb(memory.external));
+}
+logRuntimeMemory('Start');
+const runtimeMemoryTimer = setInterval(() => logRuntimeMemory('Heartbeat'), 60_000);
+runtimeMemoryTimer.unref();
 
 // Diagnose für frühe Prozessabbrüche: SIGABRT selbst ist nicht per JavaScript
 // abfangbar, aber Fehler vor dem Abbruch sollen im Host-Log sichtbar werden.
@@ -82,10 +105,13 @@ console.log('[BWW] Discord-Client initialisiert.');
 client.on('error', (error) => console.error('[BWW DISCORD ERROR]', error?.stack || error));
 client.on('shardError', (error, shardId) => console.error('[BWW SHARD ERROR]', shardId, error?.stack || error));
 client.on('shardDisconnect', (event, shardId) => console.warn('[BWW SHARD DISCONNECT]', shardId, event?.code, event?.reason || ''));
+client.on('warn', (warning) => console.warn('[BWW DISCORD WARNING]', warning));
+client.on('shardReconnecting', (shardId) => console.warn('[BWW SHARD RECONNECTING]', shardId));
 client.on('shardReconnecting', (shardId) => console.warn('[BWW SHARD RECONNECTING]', shardId));
 
 
 client.once(Events.ClientReady, async (bot) => {
+  logRuntimeMemory('Discord Ready');
   const rest = new REST({ version: '10' }).setToken(token);
   try {
     await rest.put(Routes.applicationCommands(bot.user.id), { body: commands });
@@ -185,6 +211,7 @@ client.on(Events.InteractionCreate, (interaction) => {
 });
 
 async function shutdown(signal) {
+  clearInterval(runtimeMemoryTimer);
   if (statusSyncTimer) clearInterval(statusSyncTimer);
   if (dashboardActionsFallbackTimer) clearInterval(dashboardActionsFallbackTimer);
   try { await markOffline(client); } catch (err) { console.error('[BWW Dashboard] Offline-Status fehlgeschlagen:', err.message); }
