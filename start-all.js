@@ -18,8 +18,36 @@ const bots = [
 
 const children = new Map();
 const restarting = new Set();
+const restartAttempts = new Map();
+const restartTimers = new Map();
+const startupTimers = new Set();
+const START_STAGGER_MS = Math.max(0, Number(process.env.BOT_START_STAGGER_MS) || 2500);
 let syncing = false;
 let shuttingDown = false;
+
+function clearScheduledRestart(name) {
+  const timer = restartTimers.get(name);
+  if (timer) clearTimeout(timer);
+  restartTimers.delete(name);
+}
+
+function scheduleCrashRestart(name, entry, code, signal) {
+  if (shuttingDown || restartTimers.has(name)) return;
+  const attempts = (restartAttempts.get(name) || 0) + 1;
+  restartAttempts.set(name, attempts);
+  const delay = Math.min(60_000, 3_000 * (2 ** Math.min(attempts - 1, 4)));
+  console.error(
+    '[START-ALL] ' + name + ' wurde unerwartet beendet (Code=' + code +
+    ', Signal=' + (signal || 'none') + '). Neustart in ' +
+    Math.ceil(delay / 1000) + ' Sekunden (Versuch ' + attempts + ').'
+  );
+  const timer = setTimeout(() => {
+    restartTimers.delete(name);
+    startBot(name, entry);
+  }, delay);
+  timer.unref();
+  restartTimers.set(name, timer);
+}
 
 function run(command, args, label) {
   const result = spawnSync(command, args, {
@@ -37,6 +65,10 @@ function installDependencies() {
 
 function startBot(name, entry) {
   if (shuttingDown) return;
+  const existing = children.get(name);
+  if (existing && existing.exitCode === null) return;
+  clearScheduledRestart(name);
+
   const entryPath = path.join(ROOT, entry);
   const child = spawn(process.execPath, [entryPath], {
     cwd: ROOT,
@@ -46,22 +78,32 @@ function startBot(name, entry) {
   });
 
   children.set(name, child);
+  const stableTimer = setTimeout(() => restartAttempts.delete(name), 5 * 60_000);
+  stableTimer.unref();
+
   child.on('error', error => {
     console.error('[START-ALL] ' + name + ' konnte nicht gestartet werden: ' + error.message);
   });
   child.on('exit', (code, signal) => {
+    clearTimeout(stableTimer);
     console.log('[START-ALL] Bot ' + name + ' beendet (Code=' + code + ', Signal=' + (signal || 'none') + ')');
     if (children.get(name) === child) children.delete(name);
+
     if (restarting.has(name)) {
       restarting.delete(name);
+      restartAttempts.delete(name);
       startBot(name, entry);
+      return;
     }
+
+    if (!shuttingDown) scheduleCrashRestart(name, entry, code, signal);
   });
 }
 
 function restartBot(name) {
   const config = bots.find(bot => bot.name === name);
   if (!config || shuttingDown) return;
+  clearScheduledRestart(name);
   const child = children.get(name);
   if (!child || child.exitCode !== null) {
     startBot(config.name, config.entry);
@@ -107,6 +149,9 @@ function shutdown(signal) {
   if (shuttingDown) return;
   shuttingDown = true;
   clearInterval(syncTimer);
+  for (const timer of startupTimers) clearTimeout(timer);
+  startupTimers.clear();
+  for (const name of restartTimers.keys()) clearScheduledRestart(name);
   for (const child of children.values()) {
     if (child.exitCode === null) child.kill(signal);
   }
@@ -123,8 +168,14 @@ try {
   process.exit(1);
 }
 
-console.log('[START-ALL] Starte alle Bots: ' + bots.map(bot => bot.name).join(', '));
-for (const bot of bots) startBot(bot.name, bot.entry);
+console.log('[START-ALL] Starte alle Bots gestaffelt: ' + bots.map(bot => bot.name).join(', '));
+bots.forEach((bot, index) => {
+  const timer = setTimeout(() => {
+    startupTimers.delete(timer);
+    startBot(bot.name, bot.entry);
+  }, index * START_STAGGER_MS);
+  startupTimers.add(timer);
+});
 
 const syncTimer = setInterval(scanAndSync, intervalMs);
 console.log('[AUTO-SYNC] Automatische GitHub-Prüfung alle 60 Sekunden aktiviert.');
