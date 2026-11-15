@@ -27,6 +27,19 @@ if (!token) {
 }
 console.log('[BWW] Token geladen.');
 
+// Diagnose für frühe Prozessabbrüche: SIGABRT selbst ist nicht per JavaScript
+// abfangbar, aber Fehler vor dem Abbruch sollen im Host-Log sichtbar werden.
+process.on('uncaughtExceptionMonitor', (error, origin) => {
+  console.error('[BWW FATAL] Unbehandelte Exception:', { origin, stack: error?.stack || String(error) });
+});
+process.on('warning', (warning) => {
+  console.warn('[BWW NODE WARNING]', warning?.stack || warning);
+});
+process.on('exit', (code) => {
+  console.log('[BWW] Node-Prozess beendet. Exit-Code:', code);
+});
+console.log('[BWW] Module geladen; initialisiere Discord-Client …');
+
 let dashboardActionsChannel = null;
 let dashboardActionsRealtimeClient = null;
 let dashboardActionsFallbackTimer = null;
@@ -64,6 +77,12 @@ const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages, GatewayIntentBits.DirectMessages],
   partials: [Partials.GuildMember, Partials.Channel],
 });
+
+console.log('[BWW] Discord-Client initialisiert.');
+client.on('error', (error) => console.error('[BWW DISCORD ERROR]', error?.stack || error));
+client.on('shardError', (error, shardId) => console.error('[BWW SHARD ERROR]', shardId, error?.stack || error));
+client.on('shardDisconnect', (event, shardId) => console.warn('[BWW SHARD DISCONNECT]', shardId, event?.code, event?.reason || ''));
+client.on('shardReconnecting', (shardId) => console.warn('[BWW SHARD RECONNECTING]', shardId));
 
 
 client.once(Events.ClientReady, async (bot) => {
@@ -181,7 +200,10 @@ async function shutdown(signal) {
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
 
-client.login(token).catch((err) => {
-  console.error('Login-Fehler:', err && (err.stack || err.message || err));
-  process.exit(1);
-});
+console.log('[BWW] Starte Discord-Gateway-Login …');
+client.login(token)
+  .then(() => console.log('[BWW] Discord-Gateway-Login erfolgreich.'))
+  .catch((err) => {
+    console.error('[BWW] Login-Fehler:', err && (err.stack || err.message || err));
+    process.exit(1);
+  });
