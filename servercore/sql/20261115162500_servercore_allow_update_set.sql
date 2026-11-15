@@ -29,7 +29,11 @@ BEGIN
   END IF;
   IF position(';' in p_sql) > 0 OR position('--' in p_sql) > 0
      OR position('/*' in p_sql) > 0 OR position('*/' in p_sql) > 0
-     OR lower(p_sql) ~ '(pg_catalog|information_schema|auth|storage|vault)' THEN
+     OR position('pg_catalog.' in lower(p_sql)) > 0
+     OR position('information_schema.' in lower(p_sql)) > 0
+     OR position('auth.' in lower(p_sql)) > 0
+     OR position('storage.' in lower(p_sql)) > 0
+     OR position('vault.' in lower(p_sql)) > 0 THEN
     RAISE EXCEPTION 'The SQL statement contains a forbidden construct.';
   END IF;
   IF upper(p_sql) ~ '(^|[[:space:]])(CREATE|ALTER|DROP|TRUNCATE|GRANT|REVOKE|COPY|CALL|DO|RESET|VACUUM|ANALYZE|EXPLAIN)([[:space:]]|$)' THEN
