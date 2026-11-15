@@ -1,4 +1,12 @@
 const path = require('node:path');
+
+process.on('uncaughtExceptionMonitor', (error, origin) => {
+  console.error('[BWW FATAL] Uncaught exception (' + origin + '):', error?.stack || error);
+});
+process.on('warning', (warning) => {
+  console.warn('[BWW Node-Warnung]:', warning?.stack || warning);
+});
+
 const envPath = path.resolve(__dirname, '../../bww/.env');
 const envResult = require('dotenv').config({ path: envPath });
 
@@ -26,6 +34,17 @@ if (!token) {
   process.exit(1);
 }
 console.log('[BWW] Token geladen.');
+
+function logRuntimeMemory(label) {
+  const memory = process.memoryUsage();
+  const mb = value => (value / 1024 / 1024).toFixed(1) + ' MB';
+  console.log('[BWW Runtime] ' + label + ' | RSS=' + mb(memory.rss) +
+    ', Heap=' + mb(memory.heapUsed) + '/' + mb(memory.heapTotal) +
+    ', External=' + mb(memory.external));
+}
+logRuntimeMemory('Start');
+const runtimeMemoryTimer = setInterval(() => logRuntimeMemory('Heartbeat'), 60_000);
+runtimeMemoryTimer.unref();
 
 let dashboardActionsChannel = null;
 let dashboardActionsRealtimeClient = null;
@@ -65,8 +84,20 @@ const client = new Client({
   partials: [Partials.GuildMember, Partials.Channel],
 });
 
+client.on('error', error => console.error('[BWW Discord] Client-Fehler:', error?.stack || error));
+client.on('shardError', error => console.error('[BWW Discord] Gateway-Shard-Fehler:', error?.stack || error));
+client.on('shardDisconnect', (event, shardId) => {
+  console.warn('[BWW Discord] Gateway getrennt:', {
+    shardId,
+    code: event?.code ?? null,
+    reason: event?.reason || null,
+    wasClean: event?.wasClean ?? null
+  });
+});
+client.on('warn', warning => console.warn('[BWW Discord] Warnung:', warning));
 
 client.once(Events.ClientReady, async (bot) => {
+  logRuntimeMemory('Discord Ready');
   const rest = new REST({ version: '10' }).setToken(token);
   try {
     await rest.put(Routes.applicationCommands(bot.user.id), { body: commands });
@@ -166,6 +197,7 @@ client.on(Events.InteractionCreate, (interaction) => {
 });
 
 async function shutdown(signal) {
+  clearInterval(runtimeMemoryTimer);
   if (statusSyncTimer) clearInterval(statusSyncTimer);
   if (dashboardActionsFallbackTimer) clearInterval(dashboardActionsFallbackTimer);
   try { await markOffline(client); } catch (err) { console.error('[BWW Dashboard] Offline-Status fehlgeschlagen:', err.message); }
