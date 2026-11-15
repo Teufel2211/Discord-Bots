@@ -88,18 +88,12 @@ const client = new Client({
   partials: [Partials.GuildMember, Partials.Channel],
 });
 
-client.on('error', error => console.error('[BWW Discord] Client-Fehler:', error?.stack || error));
-client.on('shardError', error => console.error('[BWW Discord] Gateway-Shard-Fehler:', error?.stack || error));
-client.on('shardDisconnect', (event, shardId) => {
-  console.warn('[BWW Discord] Gateway getrennt:', {
-    shardId,
-    code: event?.code ?? null,
-    reason: event?.reason || null,
-    wasClean: event?.wasClean ?? null
-  });
-});
-client.on('warn', warning => console.warn('[BWW Discord] Warnung:', warning));
-client.on('shardReconnecting', shardId => console.warn('[BWW Discord] Gateway verbindet erneut:', shardId));
+console.log('[BWW] Discord-Client initialisiert.');
+client.on('error', (error) => console.error('[BWW DISCORD ERROR]', error?.stack || error));
+client.on('shardError', (error, shardId) => console.error('[BWW SHARD ERROR]', shardId, error?.stack || error));
+client.on('shardDisconnect', (event, shardId) => console.warn('[BWW SHARD DISCONNECT]', shardId, event?.code, event?.reason || ''));
+client.on('warn', (warning) => console.warn('[BWW DISCORD WARNING]', warning));
+client.on('shardReconnecting', (shardId) => console.warn('[BWW SHARD RECONNECTING]', shardId));
 
 client.once(Events.ClientReady, async (bot) => {
   logRuntimeMemory('Discord Ready');
