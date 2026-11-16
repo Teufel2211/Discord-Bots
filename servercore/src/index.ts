@@ -155,6 +155,10 @@ const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildModeration]
 });
 
+// ServerCore deliberately uses one interactionCreate listener per feature module.
+// The default EventEmitter limit (10) is lower than this fixed, intentional count.
+client.setMaxListeners(20);
+
 attachAutoMod(client, database);
 attachGreetings(client, database);
 attachCommunityRoles(client, database);
