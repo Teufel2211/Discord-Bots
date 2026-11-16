@@ -21,7 +21,7 @@ const restarting = new Set();
 const restartAttempts = new Map();
 const restartTimers = new Map();
 const startupTimers = new Set();
-const START_STAGGER_MS = Math.max(0, Number(process.env.BOT_START_STAGGER_MS) || 2500);
+const START_STAGGER_MS = Math.max(0, Number(process.env.BOT_START_STAGGER_MS) || 5000);
 let syncing = false;
 let shuttingDown = false;
 
@@ -72,7 +72,12 @@ function startBot(name, entry) {
   const entryPath = path.join(ROOT, entry);
   const child = spawn(process.execPath, [entryPath], {
     cwd: ROOT,
-    env: { ...process.env, BOT_ABBR: name },
+    env: {
+      ...process.env,
+      BOT_ABBR: name,
+      // Keep per-process worker threads low on hosts with strict PID/thread quotas.
+      UV_THREADPOOL_SIZE: process.env.UV_THREADPOOL_SIZE || '2'
+    },
     stdio: 'inherit',
     windowsHide: true
   });
