@@ -33,15 +33,20 @@ const realtimeKey = (
   "sb_publishable_mMNhPZgSP6GSFKWiyrRbgg_FF8Lhc4m"
 ).trim();
 let lastErrorAt = 0;
+// A quota-disabled Vercel deployment returns HTTP 402 for every request.
+// Pause API traffic for 15 minutes instead of hammering the disabled deployment.
+let apiUnavailableUntil = 0;
 
 function request(path, options = {}) {
   if (!apiUrl || !botSecret) return Promise.resolve(null);
+  if (Date.now() < apiUnavailableUntil) return Promise.resolve(null);
   return fetch(apiUrl + path, {
     ...options,
     headers: { "content-type": "application/json", authorization: "Bearer " + botSecret, ...(options.headers || {}) }
   }).then(async (response) => {
     const responseText = await response.text();
     if (!response.ok) {
+      if (response.status === 402) apiUnavailableUntil = Date.now() + 15 * 60_000;
       let endpoint = "";
       try {
         const parsed = new URL(response.url);
@@ -50,6 +55,7 @@ function request(path, options = {}) {
       const detail = responseText.replace(/\s+/g, " ").slice(0, 180);
       throw new Error("Giveaway-API HTTP " + response.status + endpoint + (detail ? ": " + detail : ""));
     }
+    apiUnavailableUntil = 0;
     try {
       return responseText ? JSON.parse(responseText) : {};
     } catch {
