@@ -19,5 +19,8 @@
     "tmi.js": "1.8.5",
     "zod": "^3.24.1",
     "tsx": "^4.19.2"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true
   }
 }
