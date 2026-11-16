@@ -61,7 +61,7 @@ process.on('warning', (warning) => {
 process.on('exit', (code) => {
   console.log('[BWW] Node-Prozess beendet. Exit-Code:', code);
 });
-console.log('[BWW] Module geladen; initialisiere Discord-Client …');
+
 
 let dashboardActionsChannel = null;
 let dashboardActionsRealtimeClient = null;
@@ -107,7 +107,7 @@ client.on('shardError', (error, shardId) => console.error('[BWW SHARD ERROR]', s
 client.on('shardDisconnect', (event, shardId) => console.warn('[BWW SHARD DISCONNECT]', shardId, event?.code, event?.reason || ''));
 client.on('warn', (warning) => console.warn('[BWW DISCORD WARNING]', warning));
 client.on('shardReconnecting', (shardId) => console.warn('[BWW SHARD RECONNECTING]', shardId));
-client.on('shardReconnecting', (shardId) => console.warn('[BWW SHARD RECONNECTING]', shardId));
+
 
 
 client.once(Events.ClientReady, async (bot) => {
