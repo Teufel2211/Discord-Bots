@@ -6,6 +6,15 @@ function normalizeApiUrl(value) {
   try {
     const parsed = new URL(value);
     if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return value.replace(/\/$/, "");
+
+    // The previous twitch-chat-overlay-tau deployment no longer exists.
+    // Keep older KataBump .env files working by routing them to the active
+    // production project alias verified in Vercel: twitch-giveaway.vercel.app.
+    if (parsed.hostname === "twitch-chat-overlay-tau.vercel.app") {
+      parsed.hostname = "twitch-giveaway.vercel.app";
+      console.warn("[GIVEAWAY] Veraltete API-Domain erkannt; verwende twitch-giveaway.vercel.app.");
+    }
+
     // Accept either the complete function URL or just the Vercel project origin.
     if (!parsed.pathname || parsed.pathname === "/") parsed.pathname = "/api/giveaway";
     return parsed.toString().replace(/\/$/, "");
