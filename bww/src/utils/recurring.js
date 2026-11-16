@@ -53,8 +53,18 @@ async function processRecurringMessages(client) {
             entry.lastSentAt = new Date().toISOString();
             entry.lastError = '';
           } catch (error) {
-            entry.lastError = String(error.message || error).slice(0, 500);
-            console.error('[BWW] Wiederkehrende Nachricht fehlgeschlagen:', entry.id, entry.lastError);
+            const discordCode = Number(error?.code);
+            if ([10003, 50001, 50013].includes(discordCode)) {
+              // Unknown channel, missing channel access, or missing send permission:
+              // disable the entry until an administrator fixes the target and re-enables it.
+              entry.active = false;
+              entry.disabledAt = new Date().toISOString();
+              entry.lastError = 'Discord-Ziel nicht verfügbar oder keine Sendeberechtigung (Code ' + discordCode + '). Nachricht wurde deaktiviert.';
+              console.warn('[BWW] Wiederkehrende Nachricht wegen Discord-Berechtigungs-/Kanalfehler deaktiviert:', entry.id, entry.lastError);
+            } else {
+              entry.lastError = String(error.message || error).slice(0, 500);
+              console.error('[BWW] Wiederkehrende Nachricht fehlgeschlagen:', entry.id, entry.lastError);
+            }
           }
         }
         await saveGuildSettings(guild.id, settings);
