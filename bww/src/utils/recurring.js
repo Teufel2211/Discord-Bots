@@ -31,8 +31,23 @@ async function processRecurringMessages(client) {
               entry.image = await migrateDiscordImageUrl(entry.image, guild.id);
               await saveGuildSettings(guild.id, settings);
             }
-            const channel = await client.channels.fetch(entry.channelId).catch(() => null);
-            if (!channel?.isTextBased()) throw new Error('Zielkanal nicht gefunden oder nicht textbasiert.');
+            let channel;
+            try {
+              channel = await client.channels.fetch(entry.channelId);
+            } catch (error) {
+              // Discord error 10003 means the channel was deleted or the stored ID is invalid.
+              if (Number(error?.code) === 10003) channel = null;
+              else throw error;
+            }
+
+            if (!channel || channel.guildId !== guild.id || !channel.isTextBased()) {
+              entry.active = false;
+              entry.disabledAt = new Date().toISOString();
+              entry.lastError = 'Zielkanal fehlt, gehört zu einem anderen Server oder ist nicht textbasiert. Nachricht wurde automatisch deaktiviert.';
+              console.warn('[BWW] Wiederkehrende Nachricht automatisch deaktiviert:', entry.id, 'Kanal:', entry.channelId || '(keine Kanal-ID)');
+              continue;
+            }
+
             const container = embedV2({ description: entry.text || '', image: entry.image || '', color: entry.color || '#5865F2' });
             await channel.send({ components: [container], flags: V2, allowedMentions: { parse: [] } });
             entry.lastSentAt = new Date().toISOString();
