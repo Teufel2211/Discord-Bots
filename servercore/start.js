@@ -10,9 +10,14 @@ if (!require('node:fs').existsSync(cli)) {
   process.exit(1);
 }
 
+// KataBump may impose a very low OS-thread/process limit. esbuild is a Go
+// binary launched by tsx; cap its scheduler so it does not exhaust that limit.
 const child = spawn(process.execPath, [cli, entry], {
   cwd: root,
-  env: process.env,
+  env: {
+    ...process.env,
+    GOMAXPROCS: process.env.GOMAXPROCS || '2'
+  },
   stdio: 'inherit',
   windowsHide: true
 });
