@@ -79,7 +79,7 @@ async function processRecurringMessages(client) {
 
 function startRecurringMessageLoop(client) {
   processRecurringMessages(client).catch(() => {});
-  setInterval(() => processRecurringMessages(client).catch(() => {}), 15_000);
+  setInterval(() => processRecurringMessages(client).catch(() => {}), 60_000);
 }
 
 module.exports = { startRecurringMessageLoop, processRecurringMessages };
