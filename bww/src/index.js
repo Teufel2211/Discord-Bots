@@ -67,6 +67,7 @@ let dashboardActionsChannel = null;
 let dashboardActionsRealtimeClient = null;
 let dashboardActionsFallbackTimer = null;
 let statusSyncTimer = null;
+let guildSyncTimer = null;
 let dashboardActionsRunning = false;
 let dashboardActionsRerun = false;
 
@@ -123,9 +124,11 @@ client.once(Events.ClientReady, async (bot) => {
 
   startGiveawayLoop(client);
   startRecurringMessageLoop(client);
-  const syncDashboardStatus = () => Promise.all([syncBotStatus(client, 'online'), syncGuilds(client)]).catch((err) => console.error('[BWW Dashboard] Status-Sync fehlgeschlagen:', err.message));
-  await syncDashboardStatus();
+  const syncDashboardStatus = () => syncBotStatus(client, 'online').catch((err) => console.error('[BWW Dashboard] Status-Sync fehlgeschlagen:', err.message));
+  const syncGuildMetadata = () => syncGuilds(client).catch((err) => console.error('[BWW Dashboard] Serverdaten-Sync fehlgeschlagen:', err.message));
+  await Promise.all([syncDashboardStatus(), syncGuildMetadata()]);
   statusSyncTimer = setInterval(syncDashboardStatus, 60_000);
+  guildSyncTimer = setInterval(syncGuildMetadata, 5 * 60_000);
   const processActions = () => processDashboardActionsSafely(client);
   await processActions();
 
@@ -213,6 +216,7 @@ client.on(Events.InteractionCreate, (interaction) => {
 async function shutdown(signal) {
   clearInterval(runtimeMemoryTimer);
   if (statusSyncTimer) clearInterval(statusSyncTimer);
+  if (guildSyncTimer) clearInterval(guildSyncTimer);
   if (dashboardActionsFallbackTimer) clearInterval(dashboardActionsFallbackTimer);
   try { await markOffline(client); } catch (err) { console.error('[BWW Dashboard] Offline-Status fehlgeschlagen:', err.message); }
   if (dashboardActionsRealtimeClient && dashboardActionsChannel) {
