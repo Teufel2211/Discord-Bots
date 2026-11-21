@@ -995,7 +995,7 @@
       document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
 
       bootstrap();
-      window.setInterval(refresh, 2000);
+      window.setInterval(() => { if (!document.hidden) refresh(); }, 10000);
       window.setInterval(tick, 250);
     })();
   </script>
