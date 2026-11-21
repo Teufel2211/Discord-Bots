@@ -167,7 +167,7 @@ export function attachRecurringMessages(client: Client, database: Database): voi
       }
     }
   };
-  const timer = setInterval(() => void processDueMessages().catch((error) => console.error("[recurring-messages] Scheduler fehlgeschlagen:", error)), 15_000);
+  const timer = setInterval(() => void processDueMessages().catch((error) => console.error("[recurring-messages] Scheduler fehlgeschlagen:", error)), 60_000);
   timer.unref();
   void processDueMessages().catch((error) => console.error("[recurring-messages] Initialer Scheduler fehlgeschlagen:", error));
 }

@@ -311,7 +311,7 @@ export function attachGiveaways(client: Client, database: Database): void {
       }
     }
   };
-  const timer = setInterval(() => void finishDue().catch((error) => console.error("[giveaways] Scheduler failed:", error)), 10_000);
+  const timer = setInterval(() => void finishDue().catch((error) => console.error("[giveaways] Scheduler failed:", error)), 60_000);
   timer.unref();
   void finishDue().catch((error) => console.error("[giveaways] Initial scheduler failed:", error));
 }
