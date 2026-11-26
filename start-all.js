@@ -10,7 +10,6 @@ const {
 
 const ROOT = __dirname;
 const bots = [
-  { name: 'VC', entry: 'current/index.js' },
   { name: 'BWW', entry: 'bww/src/index.js' },
   { name: 'TTV', entry: 'twitch-chatbot/src/index.js' },
   { name: 'SC', entry: 'servercore/start.js' }
